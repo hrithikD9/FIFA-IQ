@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
     Globe,
     Apple,
@@ -21,7 +21,9 @@ import { useAuth } from '../context/useAuth'
 
 const Login = () => {
     const navigate = useNavigate()
-    const { login } = useAuth()
+    const location = useLocation()
+    const { signIn } = useAuth()
+    const successMessage = location.state?.message ?? ''
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [showPassword, setShowPassword] = useState(false)
@@ -29,8 +31,9 @@ const Login = () => {
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState('')
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault()
+
         if (isLoading) {
             return
         }
@@ -38,23 +41,26 @@ const Login = () => {
         setIsLoading(true)
         setError('')
 
-        setTimeout(() => {
+        try {
+            const normalizedEmail = email.trim().toLowerCase()
+            const cleanPassword = password.trim()
+
+            console.log('Attempting login for:', normalizedEmail)
+            const { data, error: signInError } = await signIn({ email: normalizedEmail, password: cleanPassword })
+            console.log('Login response:', { data, error: signInError })
+
+            if (signInError) {
+                setError(signInError.message)
+                return
+            }
+
+            navigate('/')
+        } catch (submitError) {
+            console.error('Login submission failed:', submitError)
+            setError(submitError instanceof Error ? submitError.message : 'Unable to sign in right now.')
+        } finally {
             setIsLoading(false)
-
-            if (email === 'admin@test.com' && password === 'password') {
-                login({ name: 'Admin User', email: 'admin@test.com', role: 'admin' })
-                navigate('/admin')
-                return
-            }
-
-            if (email === 'test@test.com' && password === 'password') {
-                login({ name: 'Test User', email: 'test@test.com', role: 'user' })
-                navigate('/dashboard')
-                return
-            }
-
-            setError('Invalid credentials')
-        }, 1500)
+        }
     }
 
     return (
@@ -167,6 +173,11 @@ const Login = () => {
 
                         {/* Form */}
                         <form onSubmit={handleSubmit} className="space-y-5">
+                            {successMessage ? (
+                                <div className="rounded-xl border border-emerald-400/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+                                    {successMessage}
+                                </div>
+                            ) : null}
                             <FormInput
                                 id="email"
                                 label="Email Address"

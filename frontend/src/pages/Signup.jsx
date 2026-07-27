@@ -19,11 +19,13 @@ import FormInput from '../components/auth/FormInput'
 import StatusBadge from '../components/auth/StatusBadge'
 import StatCard from '../components/auth/StatCard'
 import PitchBackground from '../components/auth/PitchBackground'
+import { useAuth } from '../context/useAuth'
 
 const SIGNUP_STEP_ONE_STORAGE_KEY = 'fifa-iq.signup.stepOne'
 
 const Signup = () => {
     const navigate = useNavigate()
+    const { signUp } = useAuth()
 
     const [fullName, setFullName] = useState('')
     const [email, setEmail] = useState('')
@@ -32,6 +34,9 @@ const Signup = () => {
     const [showPassword, setShowPassword] = useState(false)
     const [showConfirmPassword, setShowConfirmPassword] = useState(false)
     const [acceptTerms, setAcceptTerms] = useState(false)
+    const [error, setError] = useState('')
+    const [successMessage, setSuccessMessage] = useState('')
+    const [isSubmitting, setIsSubmitting] = useState(false)
 
     const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 
@@ -55,29 +60,51 @@ const Signup = () => {
         passwordsMatch &&
         acceptTerms
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault()
-        if (!isFormValid) {
+
+        if (!isFormValid || isSubmitting) {
             return
         }
 
-        sessionStorage.setItem(
-            SIGNUP_STEP_ONE_STORAGE_KEY,
-            JSON.stringify({
-                fullName: fullName.trim(),
-                email: email.trim().toLowerCase(),
-                password,
-                role: 'public',
-            }),
-        )
+        setIsSubmitting(true)
+        setError('')
+        setSuccessMessage('')
 
-        navigate('/signup/step-2', {
-            state: {
-                fullName: fullName.trim(),
-                email: email.trim().toLowerCase(),
-                role: 'public',
-            },
-        })
+        try {
+            const normalizedEmail = email.trim().toLowerCase()
+            console.log('Signing up user:', normalizedEmail)
+            const { data, error: signUpError } = await signUp({ email: normalizedEmail, password })
+            console.log('SignUp response:', { data, error: signUpError })
+
+            if (signUpError) {
+                setError(signUpError.message)
+                return
+            }
+
+            sessionStorage.setItem(
+                SIGNUP_STEP_ONE_STORAGE_KEY,
+                JSON.stringify({
+                    fullName: fullName.trim(),
+                    email: normalizedEmail,
+                    role: 'public',
+                }),
+            )
+
+            navigate('/signup/step-2', {
+                state: {
+                    fullName: fullName.trim(),
+                    email: normalizedEmail,
+                    role: 'public',
+                    userId: data?.user?.id ?? null,
+                },
+            })
+        } catch (submitError) {
+            console.error('Signup submission failed:', submitError)
+            setError(submitError instanceof Error ? submitError.message : 'Unable to create account right now.')
+        } finally {
+            setIsSubmitting(false)
+        }
     }
 
     const checkItemClass = (ok) =>
@@ -170,6 +197,16 @@ const Signup = () => {
                         </div>
 
                         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+                            {error ? (
+                                <div className="rounded-xl border border-rose-400/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+                                    {error}
+                                </div>
+                            ) : null}
+                            {successMessage ? (
+                                <div className="rounded-xl border border-emerald-400/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+                                    {successMessage}
+                                </div>
+                            ) : null}
                             <FormInput
                                 id="fullName"
                                 label="Full Name"
@@ -295,10 +332,10 @@ const Signup = () => {
 
                             <button
                                 type="submit"
-                                disabled={!isFormValid}
+                                disabled={!isFormValid || isSubmitting}
                                 className="w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl text-[#001A42] bg-linear-to-r from-[#ADC6FF] to-[#D0BCFF] hover:from-[#8FB3FF] hover:to-[#B58CFF] font-bold cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                Continue to Role Selection
+                                {isSubmitting ? 'Creating Account...' : 'Continue to Role Selection'}
                                 <ArrowRight className="size-4.5" strokeWidth={2.5} aria-hidden="true" />
                             </button>
                         </form>

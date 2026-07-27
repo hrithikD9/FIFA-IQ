@@ -1,42 +1,109 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
+import { createClient } from '@supabase/supabase-js'
 import { AuthContextObject } from './useAuth'
 
-const AUTH_STORAGE_KEY = 'token'
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-const getStoredUser = () => {
-    const token = localStorage.getItem(AUTH_STORAGE_KEY)
+if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Missing Supabase frontend environment variables.')
+}
 
-    if (!token) {
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+
+const mapAuthUser = (authUser) => {
+    if (!authUser) {
         return null
     }
 
-    try {
-        return JSON.parse(token)
-    } catch {
-        localStorage.removeItem(AUTH_STORAGE_KEY)
-        return null
+    return {
+        id: authUser.id,
+        email: authUser.email,
+        user_metadata: authUser.user_metadata ?? {},
+        app_metadata: authUser.app_metadata ?? {},
     }
 }
 
 export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(() => getStoredUser())
-    const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(localStorage.getItem(AUTH_STORAGE_KEY)))
+    const [session, setSession] = useState(null)
+    const [user, setUser] = useState(null)
+    const [loading, setLoading] = useState(true)
 
-    const login = (userData) => {
-        setIsAuthenticated(true)
-        setUser(userData)
-        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(userData))
+    useEffect(() => {
+        let isMounted = true
+
+        const initializeAuth = async () => {
+            const { data } = await supabase.auth.getSession()
+
+            if (!isMounted) {
+                return
+            }
+
+            setSession(data.session ?? null)
+            setUser(mapAuthUser(data.session?.user))
+            setLoading(false)
+        }
+
+        initializeAuth()
+
+        const { data: authListener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+            setSession(nextSession ?? null)
+            setUser(mapAuthUser(nextSession?.user))
+            setLoading(false)
+        })
+
+        return () => {
+            isMounted = false
+            authListener.subscription.unsubscribe()
+        }
+    }, [])
+
+    const signUp = async ({ email, password }) => {
+        return supabase.auth.signUp({ email, password })
     }
 
-    const logout = () => {
-        setIsAuthenticated(false)
-        setUser(null)
-        localStorage.removeItem(AUTH_STORAGE_KEY)
+    const signIn = async ({ email, password }) => {
+        return await supabase.auth.signInWithPassword({ email, password })
+    }
+
+    const signInWithGoogle = async () => {
+        const { data, error } = await supabase.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+                redirectTo: window.location.origin,
+            },
+        })
+
+        if (error) {
+            throw error
+        }
+
+        return data
+    }
+
+    const signOut = async () => {
+        const { error } = await supabase.auth.signOut()
+
+        if (error) {
+            throw error
+        }
     }
 
     const value = useMemo(
-        () => ({ isAuthenticated, user, login, logout }),
-        [isAuthenticated, user],
+        () => ({
+            supabase,
+            session,
+            user,
+            loading,
+            isAuthenticated: Boolean(session?.user),
+            signUp,
+            signIn,
+            signInWithGoogle,
+            signOut,
+            login: signIn,
+            logout: signOut,
+        }),
+        [loading, session, user],
     )
 
     return <AuthContextObject.Provider value={value}>{children}</AuthContextObject.Provider>

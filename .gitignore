@@ -1,14 +1,24 @@
 # Dependencies
 node_modules/
+frontend/node_modules/
 
-# Environment files
+# Environment & Secret files
 .env
-.env.local
+.env.*
+*.env
+*.env.local
 *.local
 
-# Python artifacts
-__pycache__/
+# Python artifacts & Virtual Envs
+.venv/
 venv/
+ENV/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+backend/__pycache__/
+backend/app/__pycache__/
 
 # OS artifacts
 .DS_Store
@@ -16,6 +26,7 @@ Thumbs.db
 
 # Frontend build output
 dist/
+frontend/dist/
 dist-ssr/
 
 # Logs

@@ -197,8 +197,9 @@ const SignupStepTwo = () => {
             localStorage.setItem('fifa-iq.onboarding.favorites', JSON.stringify(completedSignupPayload.favorites))
             setIsLoading(false)
 
-            navigate('/predictions', {
+            navigate('/login', {
                 state: {
+                    message: 'Account setup complete! Please log in.',
                     fullName: stepOneCredentials.fullName,
                     email: stepOneCredentials.email,
                     role: stepOneCredentials.role,
