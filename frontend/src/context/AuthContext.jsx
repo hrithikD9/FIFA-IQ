@@ -16,11 +16,46 @@ const mapAuthUser = (authUser) => {
         return null
     }
 
+    const userMetadata = authUser.user_metadata ?? {}
+    const appMetadata = authUser.app_metadata ?? {}
+
+    // Resolve the admin flag across the places Supabase may store it. The
+    // canonical source per spec is `user_metadata.is_admin`, with fallbacks to
+    // `app_metadata.is_admin` and an explicit `role === 'admin'` claim.
+    const isAdmin = Boolean(
+        (userMetadata.is_admin ?? appMetadata.is_admin) ||
+        userMetadata.role === 'admin' ||
+        appMetadata.role === 'admin'
+    )
+
+    // Resolve a display name from common metadata keys used across the auth flows.
+    const fullName =
+        userMetadata.full_name ??
+        userMetadata.fullName ??
+        userMetadata.name ??
+        null
+
+    // Derive a friendly first name with a safe fallback chain:
+    // Full Name -> first token -> email username -> 'User'.
+    const email = authUser.email ?? null
+    const trimmedFullName = typeof fullName === 'string' ? fullName.trim() : ''
+    const firstName = trimmedFullName
+        ? trimmedFullName.split(' ')[0]
+        : email
+          ? email.split('@')[0]
+          : 'User'
+
     return {
         id: authUser.id,
-        email: authUser.email,
-        user_metadata: authUser.user_metadata ?? {},
-        app_metadata: authUser.app_metadata ?? {},
+        email,
+        user_metadata: userMetadata,
+        app_metadata: appMetadata,
+        fullName,
+        name: fullName,
+        firstName,
+        isAdmin,
+        role: isAdmin ? 'admin' : 'user',
+        favorites: userMetadata.favorites ?? null,
     }
 }
 
@@ -58,8 +93,20 @@ export const AuthProvider = ({ children }) => {
         }
     }, [])
 
-    const signUp = async ({ email, password }) => {
-        return supabase.auth.signUp({ email, password })
+    // Persist full_name into user_metadata at registration so mapAuthUser can
+    // derive firstName/fullName across the app without a second write.
+    const signUp = async ({ email, password, fullName }) => {
+        return supabase.auth.signUp({
+            email,
+            password,
+            options: fullName
+                ? {
+                      data: {
+                          full_name: fullName,
+                      },
+                  }
+                : undefined,
+        })
     }
 
     const signIn = async ({ email, password }) => {
@@ -89,6 +136,21 @@ export const AuthProvider = ({ children }) => {
         }
     }
 
+    // Re-fetch the latest Supabase auth user and push it through mapAuthUser so
+    // that any consumers (Navbar, Profile, guards) reflect metadata/profile
+    // changes immediately after an updateUser() call, without waiting on the
+    // onAuthStateChange round-trip.
+    const refreshUser = async () => {
+        const { data, error } = await supabase.auth.getUser()
+
+        if (error) {
+            throw error
+        }
+
+        setUser(mapAuthUser(data.user))
+        return mapAuthUser(data.user)
+    }
+
     const value = useMemo(
         () => ({
             supabase,
@@ -100,6 +162,7 @@ export const AuthProvider = ({ children }) => {
             signIn,
             signInWithGoogle,
             signOut,
+            refreshUser,
             login: signIn,
             logout: signOut,
         }),

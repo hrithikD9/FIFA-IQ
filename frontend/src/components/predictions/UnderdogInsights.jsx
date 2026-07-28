@@ -1,8 +1,59 @@
-import React from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import messiAvatar from '../../assets/Messi.png'
 import ronaldoAvatar from '../../assets/Ronaldo.png'
+import { buildEngineLogs } from '../../services/telemetry'
 
-const UnderdogInsights = ({ isGenerating, prediction }) => {
+const LEVEL_STYLES = {
+    INIT: 'text-sky-300',
+    DATA: 'text-emerald-300',
+    SIM: 'text-[#ADC6FF]',
+    INSIGHT: 'text-[#D0BCFF]',
+    COMPLETE: 'text-emerald-400',
+}
+
+const LOG_STAGGER_MS = 550
+
+const formatTimestamp = (date) =>
+    date.toLocaleTimeString('en-GB', { hour12: false })
+
+const UnderdogInsights = ({ isGenerating, prediction, homeTeam, awayTeam, telemetry, runId }) => {
+    // Build the team-aware log script for the current fixture + prediction.
+    const script = useMemo(
+        () => buildEngineLogs(homeTeam, awayTeam, prediction, telemetry),
+        [homeTeam, awayTeam, prediction, telemetry],
+    )
+
+    // visibleCount drives the typewriter-style sequencing. It resets whenever
+    // the user regenerates (runId) or switches teams.
+    const [visibleCount, setVisibleCount] = useState(0)
+    const logContainerRef = useRef(null)
+
+    useEffect(() => {
+        // Don't stream anything until the user has generated at least once.
+        if (runId === 0) {
+            setVisibleCount(0)
+            return undefined
+        }
+
+        setVisibleCount(0)
+        const timers = script.map((_, index) =>
+            setTimeout(() => setVisibleCount(index + 1), (index + 1) * LOG_STAGGER_MS),
+        )
+
+        return () => timers.forEach(clearTimeout)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [runId, homeTeam, awayTeam])
+
+    // Auto-scroll to the latest line as the stream grows.
+    useEffect(() => {
+        const container = logContainerRef.current
+        if (container) {
+            container.scrollTop = container.scrollHeight
+        }
+    }, [visibleCount])
+
+    const visibleLogs = script.slice(0, visibleCount)
+
     return (
         <div className={`flex gap-x-10 justify-evenly mt-20 items-center bg-gray-800 rounded-2xl p-6 transition-opacity ${isGenerating ? 'animate-pulse opacity-70' : ''}`}>
             <div>
@@ -21,10 +72,28 @@ const UnderdogInsights = ({ isGenerating, prediction }) => {
                 )}
             </div>
             <div className="bg-gray-500 max-w-2xl rounded-2xl p-4">
-                <p className="text-2xl font-bold mb-7">Live Engine Logs</p>
-                {[1, 2, 3, 4].map((item) => (
-                    <div key={item} className="flex gap-x-4"><p>[08:42:11]</p><p>Aggregating player health metrics.....SUCCESS</p></div>
-                ))}
+                <div className="flex items-center justify-between mb-7">
+                    <p className="text-2xl font-bold">Live Engine Logs</p>
+                    <span className={`h-2.5 w-2.5 rounded-full ${runId > 0 && visibleCount < script.length ? 'bg-emerald-400 animate-ping' : 'bg-gray-400'}`} />
+                </div>
+
+                <div
+                    ref={logContainerRef}
+                    className="font-mono text-sm leading-7 space-y-1 max-h-48 overflow-y-auto pr-2 scroll-smooth"
+                >
+                    {runId === 0 ? (
+                        <p className="text-gray-300">Select a matchup and hit &ldquo;Generate Intelligence&rdquo; to start the engine.</p>
+                    ) : (
+                        visibleLogs.map((log, index) => (
+                            <div key={`${runId}-${index}`} className="flex gap-x-3 opacity-0 animate-[fadeIn_.3s_ease_forwards]">
+                                <span className="text-gray-400 shrink-0">[{formatTimestamp(new Date())}]</span>
+                                <span className={`font-bold shrink-0 ${LEVEL_STYLES[log.level] ?? 'text-gray-200'}`}>[{log.level}]</span>
+                                <span className="text-gray-100">{log.text}</span>
+                            </div>
+                        ))
+                    )}
+                </div>
+
                 <div className="mt-4 flex gap-x-4 bg-gray-700 rounded-xl p-2 items-center">
                     <div className="flex -space-x-4">
                         <img className="h-10 w-10 border border-[#313450] rounded-full" src={messiAvatar} alt="Lionel Messi" />

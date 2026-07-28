@@ -1,8 +1,28 @@
 import React from 'react'
+import { formatTelemetry } from '../../services/telemetry'
 
 const formatPercent = (value) => `${Math.round(Number(value || 0) * 100)}%`
 
-const WinProbabilityGrid = ({ isGenerating, prediction, homeTeam, awayTeam, onShare, onSave }) => {
+const WinProbabilityGrid = ({
+    isGenerating,
+    prediction,
+    homeTeam,
+    awayTeam,
+    isSaving,
+    isSaved,
+    saveMessage,
+    onShare,
+    onSave,
+    telemetry,
+}) => {
+    const telemetryCards = telemetry
+        ? [
+              { label: 'Model Confidence', value: formatTelemetry.confidence(telemetry.modelConfidence), accent: 'text-[#ADC6FF]' },
+              { label: 'xG Spread', value: formatTelemetry.xgSpread(telemetry.xgSpread), accent: 'text-[#D0BCFF]' },
+              { label: 'Monte Carlo Runs', value: formatTelemetry.runs(telemetry.monteCarloRuns), accent: 'text-[#ADC6FF]' },
+              { label: 'Engine Latency', value: formatTelemetry.latency(telemetry.engineLatency), accent: 'text-[#D0BCFF]' },
+          ]
+        : []
     const probabilities = prediction
         ? [
               {
@@ -33,7 +53,7 @@ const WinProbabilityGrid = ({ isGenerating, prediction, homeTeam, awayTeam, onSh
                 <div className="flex flex-col items-center">
                     <p className="text-5xl font-serif font-extrabold">{prediction ? 'AI' : '--'}</p>
                     <p className="bg-gray-500 px-2 py-2 text-sm rounded-2xl mx-auto my-6 font-bold bg-linear-to-b from-[#ADC6FF] to-[#D0BCFF] text-transparent bg-clip-text border border-blue-200">
-                        {prediction ? `Match #${prediction.matchId}` : `${homeTeam.code} vs ${awayTeam.code}`}
+                        {`${homeTeam.code} vs ${awayTeam.code}`}
                     </p>
                     <p className="text-sm text-gray-200">
                         {homeTeam.name} vs {awayTeam.name}
@@ -69,22 +89,25 @@ const WinProbabilityGrid = ({ isGenerating, prediction, homeTeam, awayTeam, onSh
                 )}
             </div>
 
-            <div className="mt-8 flex gap-x-8 justify-center">
-                <div className="bg-gray-700 px-8 py-8 rounded-3xl flex items-center gap-4">
-                    <div className="flex flex-col items-center">
-                        <p className="text-xs text-gray-300">Backend Status</p>
-                        <p className="font-bold text-xl">{prediction ? 'Connected' : 'Idle'}</p>
-                    </div>
-                </div>
-                <div className="bg-gray-700 px-8 py-8 rounded-3xl flex items-center gap-4">
-                    <div className="flex flex-col items-center">
-                        <p className="text-xs text-gray-300">Prediction ID</p>
-                        <p className="font-bold text-xl">{prediction ? prediction.matchId : 'N/A'}</p>
-                    </div>
+            <div className="mt-8">
+                <p className="uppercase text-xs tracking-[0.2em] font-bold text-gray-400 mb-4">Match Telemetry</p>
+                <div className="grid grid-cols-2 gap-4">
+                    {telemetryCards.map((card) => (
+                        <div key={card.label} className="bg-gray-700 px-5 py-5 rounded-3xl flex flex-col items-center justify-center gap-1 border border-gray-600/60">
+                            <p className="text-[11px] uppercase tracking-wider text-gray-300">{card.label}</p>
+                            <p className={`font-extrabold text-2xl ${card.accent}`}>{card.value}</p>
+                        </div>
+                    ))}
                 </div>
             </div>
 
             <hr className="mt-7" />
+
+            {saveMessage ? (
+                <p className={`mt-6 text-center text-sm font-semibold ${isSaved ? 'text-emerald-300' : 'text-red-300'}`}>
+                    {saveMessage}
+                </p>
+            ) : null}
 
             <div className="mt-6 flex gap-x-10 justify-center">
                 <button
@@ -97,9 +120,10 @@ const WinProbabilityGrid = ({ isGenerating, prediction, homeTeam, awayTeam, onSh
                 <button
                     type="button"
                     onClick={onSave}
-                    className="px-4 py-3 rounded-xl text-[#001A42] bg-linear-to-r from-[#ADC6FF] to-[#D0BCFF] hover:from-[#8FB3FF] hover:to-[#B58CFF] font-bold cursor-pointer flex gap-3"
+                    disabled={!prediction || isSaving || isSaved}
+                    className="px-4 py-3 rounded-xl text-[#001A42] bg-linear-to-r from-[#ADC6FF] to-[#D0BCFF] hover:from-[#8FB3FF] hover:to-[#B58CFF] font-bold cursor-pointer flex gap-3 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                    <span>Save Prediction</span>
+                    <span>{isSaved ? 'Saved ✓' : isSaving ? 'Saving...' : 'Save Prediction'}</span>
                 </button>
             </div>
         </div>

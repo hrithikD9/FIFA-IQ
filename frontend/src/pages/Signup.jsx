@@ -73,9 +73,11 @@ const Signup = () => {
 
         try {
             const normalizedEmail = email.trim().toLowerCase()
-            console.log('Signing up user:', normalizedEmail)
-            const { data, error: signUpError } = await signUp({ email: normalizedEmail, password })
-            console.log('SignUp response:', { data, error: signUpError })
+            const { data, error: signUpError } = await signUp({
+                email: normalizedEmail,
+                password,
+                fullName: fullName.trim(),
+            })
 
             if (signUpError) {
                 setError(signUpError.message)

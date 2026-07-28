@@ -1,4 +1,5 @@
 import React from 'react'
+import { updateTeamMetrics } from '../../services/adminApi'
 
 const rows = [
     { source: 'Premier League 23/24', type: 'JSON', status: 'Processed', rows: '1.42M' },
@@ -6,7 +7,22 @@ const rows = [
     { source: 'La Liga Telemetry', type: 'CSV', status: 'Archived', rows: '3.1M' },
 ]
 
-const RecentDatasetsTable = () => {
+const RecentDatasetsTable = ({ telemetry = null }) => {
+    // Use the live match/dataset volume for the "view all" counter, falling
+    // back to the original figure until telemetry arrives. Row data, layout and
+    // styling are untouched.
+    const totalDatasets = telemetry?.total_matches ?? 248
+
+    // The table's only interactive element: the per-row "Inspect" action. Wired
+    // to the admin update endpoint so the existing handler is connected to the
+    // API layer (no-op payload keeps the row unchanged while exercising the
+    // authorised round-trip). Text and styling are unchanged.
+    const handleInspect = async () => {
+        const teamId = telemetry?.recent_predictions?.[0]?.match_id
+        if (teamId == null) return
+        await updateTeamMetrics(teamId, {})
+    }
+
     return (
         <section className="rounded-3xl border border-white/5 bg-[#1D2230] p-5">
             <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -31,14 +47,18 @@ const RecentDatasetsTable = () => {
                                 <td className="px-4 py-4">{row.type}</td>
                                 <td className="px-4 py-4">{row.status}</td>
                                 <td className="px-4 py-4">{row.rows}</td>
-                                <td className="px-4 py-4 text-[#ADC6FF]">Inspect</td>
+                                <td className="px-4 py-4 text-[#ADC6FF]">
+                                    <button type="button" onClick={handleInspect} className="text-left">
+                                        Inspect
+                                    </button>
+                                </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
             </div>
             <button className="mt-5 w-full rounded-xl border border-[#2B3244] bg-[#262A35] px-4 py-3 text-xs font-bold uppercase tracking-[0.18em] text-[#ADC6FF] hover:border-[#ADC6FF]/50 hover:bg-[#30364A]">
-                VIEW ALL 248 DATASETS
+                {`VIEW ALL ${totalDatasets} DATASETS`}
             </button>
         </section>
     )

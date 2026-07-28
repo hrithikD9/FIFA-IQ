@@ -45,9 +45,7 @@ const Login = () => {
             const normalizedEmail = email.trim().toLowerCase()
             const cleanPassword = password.trim()
 
-            console.log('Attempting login for:', normalizedEmail)
-            const { data, error: signInError } = await signIn({ email: normalizedEmail, password: cleanPassword })
-            console.log('Login response:', { data, error: signInError })
+            const { error: signInError } = await signIn({ email: normalizedEmail, password: cleanPassword })
 
             if (signInError) {
                 setError(signInError.message)

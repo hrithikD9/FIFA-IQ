@@ -8,7 +8,9 @@ const Navbar = () => {
     const [isProfileOpen, setIsProfileOpen] = useState(false)
     const profileMenuRef = useRef(null)
 
-    const displayName = user?.name || user?.fullName || 'User'
+    // Prefer the friendly first name beside the avatar; never fall back to the
+    // raw email here. firstName already resolves via full name -> email -> 'User'.
+    const displayName = user?.firstName || user?.name || user?.fullName || 'User'
     const userInitial = displayName.charAt(0).toUpperCase()
 
     const handleLogout = () => {

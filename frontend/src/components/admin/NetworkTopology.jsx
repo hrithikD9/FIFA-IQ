@@ -8,7 +8,15 @@ const nodes = [
     { label: 'ASIA-South', x: 410, y: 135, color: '#8EE8C7' },
 ]
 
-const NetworkTopology = () => {
+const NetworkTopology = ({ teams = null }) => {
+    // Populate the region chips with live team names from the admin teams API
+    // (first few, alphabetically) when available, otherwise keep the original
+    // static regions. The SVG map and all styling are unchanged.
+    const chips =
+        Array.isArray(teams) && teams.length > 0
+            ? teams.slice(0, 3).map((team) => team.name)
+            : regions
+
     return (
         <section className="rounded-3xl border border-white/5 bg-[#1D2230] p-5">
             <div className="rounded-3xl border border-[#2B3244] bg-[radial-gradient(circle_at_30%_20%,rgba(173,198,255,0.22),transparent_28%),radial-gradient(circle_at_70%_55%,rgba(208,188,255,0.2),transparent_26%),#111827] p-6">
@@ -48,7 +56,7 @@ const NetworkTopology = () => {
                     </svg>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                    {regions.map((region) => (
+                    {chips.map((region) => (
                         <span key={region} className="rounded-full border border-[#ADC6FF]/30 bg-[#ADC6FF]/10 px-3 py-1 text-xs font-bold text-[#ADC6FF]">
                             {region}
                         </span>

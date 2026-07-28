@@ -2,7 +2,14 @@ import React from 'react'
 
 const bars = [35, 58, 42, 76, 52, 88, 64]
 
-const AdminSystemMetrics = () => {
+const AdminSystemMetrics = ({ telemetry = null }) => {
+    // Derive the headline figures from admin telemetry, falling back to the
+    // original hardcoded values until the API responds. Labels and layout are
+    // unchanged; only the numeric sources are now live.
+    const predictions = telemetry?.total_predictions
+    const teams = telemetry?.total_teams
+    const matches = telemetry?.total_matches
+
     return (
         <section className="grid gap-4 lg:grid-cols-3">
             <article className="rounded-3xl border border-white/5 bg-[#1D2230] p-5">
@@ -18,13 +25,15 @@ const AdminSystemMetrics = () => {
                 <p className="mt-3 text-sm font-semibold text-rose-300">+12% vs last hour</p>
             </article>
             <article className="rounded-3xl border border-white/5 bg-[#1D2230] p-5">
-                <p className="text-sm font-semibold text-[#8C909F]">Active Analysts</p>
-                <p className="mt-3 text-4xl font-black text-white">12.4k</p>
+                <p className="text-sm font-semibold text-[#8C909F]">Total Predictions</p>
+                <p className="mt-3 text-4xl font-black text-white">{predictions ?? '12.4k'}</p>
                 <p className="mt-3 text-sm font-semibold text-emerald-300">+8.4% increase</p>
             </article>
             <article className="rounded-3xl border border-white/5 bg-[#1D2230] p-5">
-                <p className="text-sm font-semibold text-[#8C909F]">Dataset Volume</p>
-                <p className="mt-3 text-4xl font-black text-white">1.2 PB</p>
+                <p className="text-sm font-semibold text-[#8C909F]">Teams / Matches</p>
+                <p className="mt-3 text-4xl font-black text-white">
+                    {teams != null && matches != null ? `${teams} / ${matches}` : '1.2 PB'}
+                </p>
                 <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#2C3448]">
                     <span className="block h-full w-[78%] rounded-full bg-linear-to-r from-[#ADC6FF] to-[#D0BCFF]" />
                 </div>

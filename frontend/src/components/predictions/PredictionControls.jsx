@@ -4,13 +4,10 @@ const PredictionControls = ({
     teams,
     homeTeam,
     awayTeam,
-    matchId,
-    manualMatchId,
     isGenerating,
     error,
     onHomeTeamChange,
     onAwayTeamChange,
-    onMatchIdChange,
     onGenerate,
 }) => {
     return (
@@ -66,25 +63,6 @@ const PredictionControls = ({
                     </select>
                 </div>
 
-                <div className="mb-6">
-                    <p className="text-sm font-semibold text-gray-400 mb-2">
-                        Match ID
-                    </p>
-                    <input
-                        type="number"
-                        min="1"
-                        value={matchId}
-                        onChange={(e) => onMatchIdChange(Number(e.target.value) || 1)}
-                        className="w-full bg-gray-500 rounded-2xl px-5 py-4 outline-none text-center"
-                        placeholder="Enter match ID"
-                    />
-                    {matchId !== manualMatchId ? (
-                        <p className="text-xs text-gray-300 mt-2">
-                            Auto-mapped from selected teams. Manual fallback: #{manualMatchId}
-                        </p>
-                    ) : null}
-                </div>
-
                 {error ? (
                     <div className="mb-4 rounded-2xl border border-red-400/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
                         {error}
@@ -93,8 +71,8 @@ const PredictionControls = ({
 
                 <button
                     type="button"
-                    onClick={() => onGenerate({ matchId })}
-                    disabled={isGenerating || !matchId}
+                    onClick={() => onGenerate()}
+                    disabled={isGenerating}
                     className="w-full py-4 rounded-2xl font-bold text-[#001A42] bg-linear-to-r from-[#ADC6FF] to-[#D0BCFF] hover:from-[#8FB3FF] hover:to-[#B58CFF] transition-all duration-300 cursor-pointer disabled:opacity-60 disabled:cursor-wait"
                 >
                     {isGenerating ? 'GENERATING...' : 'GENERATE INTELLIGENCE'}

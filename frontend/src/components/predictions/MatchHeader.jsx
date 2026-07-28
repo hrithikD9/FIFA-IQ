@@ -1,6 +1,6 @@
 import React from 'react'
 
-const MatchHeader = ({ homeTeam, awayTeam, matchId }) => {
+const MatchHeader = ({ homeTeam, awayTeam }) => {
     return (
         <div className="space-y-10">
             <div className="flex gap-x-6">
@@ -26,7 +26,6 @@ const MatchHeader = ({ homeTeam, awayTeam, matchId }) => {
                         <span>{awayTeam.code}</span>
                     </div>
                     <img className="h-10 w-10 rounded-full object-cover" src={awayTeam.flag} alt={`${awayTeam.name} flag`} />
-                    <span className="text-xs text-white ml-2">Match #{matchId}</span>
                 </div>
             </div>
         </div>
