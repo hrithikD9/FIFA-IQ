@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../context/useAuth'
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
+import { fetchPredictionHistory } from '../../services/predictionApi'
+import TeamImage from '../TeamImage'
 
 const formatDate = (value) => {
     if (!value) return 'Unknown date'
@@ -40,37 +40,21 @@ const ProbabilityBar = ({ label, value, barClass }) => {
 
 const TeamBlock = ({ team, accentClass }) => {
     const name = team?.name ?? 'TBD'
-    const logoUrl = team?.logo_url
-    const [logoFailed, setLogoFailed] = useState(false)
-
-    // Fall back to initials when there is no logo, or when the stored logo_url
-    // is a placeholder (e.g. example.com) that fails to load.
-    const showImage = logoUrl && !logoFailed
 
     return (
         <div className="text-center">
-            {showImage ? (
-                <img
-                    src={logoUrl}
-                    alt={name}
-                    onError={() => setLogoFailed(true)}
-                    className="mx-auto size-12 rounded-full border border-white/10 bg-[#262A35] object-cover"
-                />
-            ) : (
-                <span
-                    className={`mx-auto grid size-12 place-items-center rounded-full border text-sm font-black ${accentClass}`}
-                >
-                    {name.slice(0, 2).toUpperCase()}
-                </span>
-            )}
+            <TeamImage
+                team={team}
+                className="mx-auto size-12 rounded-full border border-white/10 bg-[#262A35] object-cover"
+                fallbackClassName={accentClass}
+            />
             <p className="mt-2 text-xs font-semibold text-[#C2C6D6]">{name}</p>
         </div>
     )
 }
 
 const SavedPredictions = () => {
-    const { session, loading: authLoading } = useAuth()
-    const token = session?.access_token ?? null
+    const { isAuthenticated, loading: authLoading } = useAuth()
 
     const [predictions, setPredictions] = useState([])
     const [isLoading, setIsLoading] = useState(true)
@@ -80,42 +64,28 @@ const SavedPredictions = () => {
         // Wait for AuthContext to finish rehydrating the session before deciding
         // whether a fetch is possible — otherwise a page refresh would settle on
         // the empty state before the access token is restored.
-        if (authLoading) {
-            return
-        }
+        if (authLoading) return undefined
 
-        if (!token) {
-            setPredictions([])
-            setError('')
-            setIsLoading(false)
-            return
-        }
+        if (!isAuthenticated) return undefined
 
-        let isActive = true
+        const controller = new AbortController()
 
         const fetchHistory = async () => {
             setIsLoading(true)
             setError('')
 
             try {
-                const response = await fetch(`${API_BASE_URL}/api/v1/predictions/history`, {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                })
+                const { data, error: requestError, status } = await fetchPredictionHistory({ signal: controller.signal })
 
-                if (!response.ok) {
-                    throw new Error(`Failed to load prediction history (${response.status}).`)
-                }
+                if (requestError && status !== 401 && status !== 404) throw new Error(requestError)
 
-                const data = await response.json()
-
-                if (isActive) {
-                    setPredictions(Array.isArray(data) ? data : [])
+                if (!controller.signal.aborted) {
+                    setPredictions(data)
                 }
             } catch (fetchError) {
+                if (fetchError.name === 'AbortError') return
                 console.error('Prediction history fetch failed:', fetchError)
-                if (isActive) {
+                if (!controller.signal.aborted) {
                     setError(
                         fetchError instanceof Error
                             ? fetchError.message
@@ -123,7 +93,7 @@ const SavedPredictions = () => {
                     )
                 }
             } finally {
-                if (isActive) {
+                if (!controller.signal.aborted) {
                     setIsLoading(false)
                 }
             }
@@ -131,10 +101,12 @@ const SavedPredictions = () => {
 
         fetchHistory()
 
-        return () => {
-            isActive = false
-        }
-    }, [token, authLoading])
+        return () => controller.abort()
+    }, [isAuthenticated, authLoading])
+
+    const visiblePredictions = isAuthenticated ? predictions : []
+    const visibleError = isAuthenticated ? error : ''
+    const showLoading = authLoading || (isAuthenticated && isLoading)
 
     return (
         <section className="rounded-3xl border border-white/5 bg-[#1D2230] p-5">
@@ -143,7 +115,7 @@ const SavedPredictions = () => {
                 <span className="text-xs font-bold uppercase tracking-[0.2em] text-[#ADC6FF]">Recent</span>
             </div>
 
-            {isLoading ? (
+            {showLoading ? (
                 <div className="flex items-center justify-center gap-3 rounded-2xl border border-[#2B3244] bg-[#171B26] px-4 py-12 text-sm text-[#8C909F]">
                     <svg className="size-5 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -151,23 +123,20 @@ const SavedPredictions = () => {
                     </svg>
                     Loading your prediction history...
                 </div>
-            ) : error ? (
+            ) : visibleError ? (
                 <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-6 text-sm text-rose-200">
-                    {error}
+                    {visibleError}
                 </div>
-            ) : predictions.length === 0 ? (
+            ) : visiblePredictions.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-[#3A425A] bg-[#171B26] px-4 py-12 text-center">
-                    <p className="text-sm text-[#8C909F]">
-                        No predictions generated yet.{' '}
-                        <Link to="/predictions" className="font-semibold text-[#ADC6FF] hover:text-[#D0BCFF] transition-colors">
-                            Go to Predictions
-                        </Link>{' '}
-                        to generate your first match outcome!
-                    </p>
+                    <p className="text-sm font-semibold text-[#C2C6D6]">No predictions saved yet</p>
+                    <Link to="/predict" className="mt-4 inline-flex min-h-10 items-center rounded-lg bg-[#ADC6FF] px-4 text-sm font-bold text-[#001A42] transition-colors hover:bg-[#D0BCFF]">
+                        Go to Predictor
+                    </Link>
                 </div>
             ) : (
                 <div className="grid gap-4 md:grid-cols-2">
-                    {predictions.map((prediction) => {
+                    {visiblePredictions.map((prediction) => {
                         const homeName = prediction?.home_team?.name ?? 'Home'
                         const awayName = prediction?.away_team?.name ?? 'Away'
                         const insight = prediction?.underdog_insight
@@ -186,7 +155,15 @@ const SavedPredictions = () => {
                                     </p>
                                 </div>
 
-                                <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-4">
+                                <div className="mt-4 flex min-w-0 items-center justify-center gap-2 text-sm font-bold text-white">
+                                    <TeamImage team={prediction?.home_team} className="h-3.5 w-5 rounded-sm object-cover" fallbackClassName="border border-[#3A425A] bg-[#262A35] text-[#8C909F]" />
+                                    <span className="truncate">{homeName}</span>
+                                    <span className="shrink-0 text-[#66708A]">vs</span>
+                                    <TeamImage team={prediction?.away_team} className="h-3.5 w-5 rounded-sm object-cover" fallbackClassName="border border-[#3A425A] bg-[#262A35] text-[#8C909F]" />
+                                    <span className="truncate">{awayName}</span>
+                                </div>
+
+                                <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-4">
                                     <TeamBlock
                                         team={prediction?.home_team}
                                         accentClass="border-[#ADC6FF]/30 bg-[#ADC6FF]/10 text-[#ADC6FF]"

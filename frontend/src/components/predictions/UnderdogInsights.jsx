@@ -16,33 +16,22 @@ const LOG_STAGGER_MS = 550
 const formatTimestamp = (date) =>
     date.toLocaleTimeString('en-GB', { hour12: false })
 
-const UnderdogInsights = ({ isGenerating, prediction, homeTeam, awayTeam, telemetry, runId }) => {
-    // Build the team-aware log script for the current fixture + prediction.
-    const script = useMemo(
-        () => buildEngineLogs(homeTeam, awayTeam, prediction, telemetry),
-        [homeTeam, awayTeam, prediction, telemetry],
-    )
-
-    // visibleCount drives the typewriter-style sequencing. It resets whenever
-    // the user regenerates (runId) or switches teams.
+const EngineLogStream = ({ script, runId }) => {
     const [visibleCount, setVisibleCount] = useState(0)
     const logContainerRef = useRef(null)
 
     useEffect(() => {
         // Don't stream anything until the user has generated at least once.
         if (runId === 0) {
-            setVisibleCount(0)
             return undefined
         }
 
-        setVisibleCount(0)
         const timers = script.map((_, index) =>
             setTimeout(() => setVisibleCount(index + 1), (index + 1) * LOG_STAGGER_MS),
         )
 
         return () => timers.forEach(clearTimeout)
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [runId, homeTeam, awayTeam])
+    }, [runId, script])
 
     // Auto-scroll to the latest line as the stream grows.
     useEffect(() => {
@@ -53,6 +42,47 @@ const UnderdogInsights = ({ isGenerating, prediction, homeTeam, awayTeam, teleme
     }, [visibleCount])
 
     const visibleLogs = script.slice(0, visibleCount)
+
+    return (
+        <>
+            <div className="flex items-center justify-between mb-7">
+                <p className="text-2xl font-bold">Live Engine Logs</p>
+                <span className={`h-2.5 w-2.5 rounded-full ${runId > 0 && visibleCount < script.length ? 'bg-emerald-400 animate-ping' : 'bg-gray-400'}`} />
+            </div>
+
+            <div
+                ref={logContainerRef}
+                className="font-mono text-sm leading-7 space-y-1 max-h-48 overflow-y-auto pr-2 scroll-smooth"
+            >
+                {runId === 0 ? (
+                    <p className="text-gray-300">Select a matchup and hit &ldquo;Generate Intelligence&rdquo; to start the engine.</p>
+                ) : (
+                    visibleLogs.map((log, index) => (
+                        <div key={`${runId}-${index}`} className="flex gap-x-3 opacity-0 animate-[fadeIn_.3s_ease_forwards]">
+                            <span className="text-gray-400 shrink-0">[{formatTimestamp(new Date())}]</span>
+                            <span className={`font-bold shrink-0 ${LEVEL_STYLES[log.level] ?? 'text-gray-200'}`}>[{log.level}]</span>
+                            <span className="text-gray-100">{log.text}</span>
+                        </div>
+                    ))
+                )}
+            </div>
+        </>
+    )
+}
+
+const UnderdogInsights = ({ isGenerating, prediction, homeTeam, awayTeam, telemetry, runId }) => {
+    // Build the team-aware log script for the current fixture + prediction.
+    const script = useMemo(
+        () => buildEngineLogs(homeTeam, awayTeam, prediction, telemetry),
+        [homeTeam, awayTeam, prediction, telemetry],
+    )
+
+    // Changing a fixture or run remounts the stream with a fresh counter. This
+    // keeps reset behavior declarative instead of synchronously setting state
+    // from an effect.
+    const homeTeamKey = homeTeam?.id ?? homeTeam?.name ?? homeTeam ?? ''
+    const awayTeamKey = awayTeam?.id ?? awayTeam?.name ?? awayTeam ?? ''
+    const streamKey = `${runId}:${homeTeamKey}:${awayTeamKey}`
 
     return (
         <div className={`flex gap-x-10 justify-evenly mt-20 items-center bg-gray-800 rounded-2xl p-6 transition-opacity ${isGenerating ? 'animate-pulse opacity-70' : ''}`}>
@@ -72,27 +102,7 @@ const UnderdogInsights = ({ isGenerating, prediction, homeTeam, awayTeam, teleme
                 )}
             </div>
             <div className="bg-gray-500 max-w-2xl rounded-2xl p-4">
-                <div className="flex items-center justify-between mb-7">
-                    <p className="text-2xl font-bold">Live Engine Logs</p>
-                    <span className={`h-2.5 w-2.5 rounded-full ${runId > 0 && visibleCount < script.length ? 'bg-emerald-400 animate-ping' : 'bg-gray-400'}`} />
-                </div>
-
-                <div
-                    ref={logContainerRef}
-                    className="font-mono text-sm leading-7 space-y-1 max-h-48 overflow-y-auto pr-2 scroll-smooth"
-                >
-                    {runId === 0 ? (
-                        <p className="text-gray-300">Select a matchup and hit &ldquo;Generate Intelligence&rdquo; to start the engine.</p>
-                    ) : (
-                        visibleLogs.map((log, index) => (
-                            <div key={`${runId}-${index}`} className="flex gap-x-3 opacity-0 animate-[fadeIn_.3s_ease_forwards]">
-                                <span className="text-gray-400 shrink-0">[{formatTimestamp(new Date())}]</span>
-                                <span className={`font-bold shrink-0 ${LEVEL_STYLES[log.level] ?? 'text-gray-200'}`}>[{log.level}]</span>
-                                <span className="text-gray-100">{log.text}</span>
-                            </div>
-                        ))
-                    )}
-                </div>
+                <EngineLogStream key={streamKey} script={script} runId={runId} />
 
                 <div className="mt-4 flex gap-x-4 bg-gray-700 rounded-xl p-2 items-center">
                     <div className="flex -space-x-4">

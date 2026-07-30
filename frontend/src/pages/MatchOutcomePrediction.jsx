@@ -63,7 +63,7 @@ const getStoredFavorites = () => {
 }
 
 const MatchOutcomePrediction = () => {
-    const { user } = useAuth()
+    const { user, loading: authLoading, isAuthenticated } = useAuth()
     const location = useLocation()
     const [isGenerating, setIsGenerating] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
@@ -109,6 +109,11 @@ const MatchOutcomePrediction = () => {
     }
 
     const handleGenerate = async () => {
+        if (authLoading || !isAuthenticated) {
+            setError('Your session is still loading. Please try again in a moment.')
+            return
+        }
+
         setIsGenerating(true)
         setError('')
         setIsSaved(false)
@@ -142,7 +147,7 @@ const MatchOutcomePrediction = () => {
     }
 
     const handleSave = async () => {
-        if (!prediction || isSaving || isSaved) {
+        if (!prediction || isSaving || isSaved || authLoading || !isAuthenticated) {
             return
         }
 

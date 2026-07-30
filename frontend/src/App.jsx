@@ -59,6 +59,7 @@ function App() {
 
       {/* Protected routes */}
       <Route element={<ProtectedRoute />}>
+        <Route path='/predict' element={<MatchOutcomePrediction />}/>
         <Route path='/predictions' element={<MatchOutcomePrediction />}/>
         <Route path='/history' element={<LegacyTimelinePage />}/>
         <Route path='/profile' element={<PersonalSettings />}/>

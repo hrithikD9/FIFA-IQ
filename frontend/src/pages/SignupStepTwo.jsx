@@ -1,489 +1,206 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import {
-    ChevronLeft,
-    Check,
-    Plus,
-    Search,
-    Trophy,
-    Users,
-    Rocket,
-} from 'lucide-react'
-import { SIGNUP_ROLES } from '../constants/userRoles'
+import { ArrowRight, BarChart3, Bell, Check, LoaderCircle, Search, ShieldCheck, Trophy, Users } from 'lucide-react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import TeamImage from '../components/TeamImage'
+import { fetchTeams, isNationalTeam, toTeamPreference } from '../services/teamApi'
+import { supabase } from '../services/supabaseClient'
 
-const MAX_SELECTIONS = 3
 const SIGNUP_STEP_ONE_STORAGE_KEY = 'fifa-iq.signup.stepOne'
+const PENDING_ONBOARDING_STORAGE_KEY = 'fifa-iq.signup.pendingOnboarding'
 
-const nationalTeams = [
-    { id: 'france', name: 'France' },
-    { id: 'argentina', name: 'Argentina' },
-    { id: 'brazil', name: 'Brazil' },
-    { id: 'germany', name: 'Germany' },
-    { id: 'england', name: 'England' },
-    { id: 'portugal', name: 'Portugal' },
+const competitions = ['FIFA World Cup', 'UEFA Champions League', 'UEFA Europa League', 'Copa America', 'UEFA European Championship']
+const insights = [
+    { id: 'match_predictions', label: 'Match predictions', icon: BarChart3 },
+    { id: 'team_form', label: 'Team form alerts', icon: Trophy },
+    { id: 'underdog_insights', label: 'Underdog insights', icon: ShieldCheck },
+    { id: 'notification_digest', label: 'Weekly notification digest', icon: Bell },
+]
+const roles = [
+    { id: 'fan', title: 'Fan / Enthusiast', description: 'Follow the teams and competitions that matter to you.', icon: Trophy },
+    { id: 'analyst', title: 'Professional Analyst', description: 'Build a focused workspace for advanced performance intelligence.', icon: BarChart3 },
+    { id: 'coach', title: 'Coach / Scout', description: 'Track opposition, tactical trends, and player development.', icon: Users },
 ]
 
-const highlightsByTeam = {
-    france: [
-        { id: 'france-intl', name: 'France (International)', category: 'NATION', entityKey: 'nation-france' },
-        { id: 'ligue-1', name: 'Ligue 1', category: 'LEAGUE', entityKey: 'league-ligue-1' },
-        { id: 'mbappe', name: 'Kylian Mbappe', category: 'PLAYER', entityKey: 'player-mbappe' },
-    ],
-    argentina: [
-        { id: 'argentina-intl', name: 'Argentina (International)', category: 'NATION', entityKey: 'nation-argentina' },
-        { id: 'primera-division', name: 'Primera Division', category: 'LEAGUE', entityKey: 'league-primera-division' },
-        { id: 'messi', name: 'Lionel Messi', category: 'PLAYER', entityKey: 'player-messi' },
-    ],
-    brazil: [
-        { id: 'brazil-intl', name: 'Brazil (International)', category: 'NATION', entityKey: 'nation-brazil' },
-        { id: 'serie-a-br', name: 'Serie A Brasil', category: 'LEAGUE', entityKey: 'league-brasileirao' },
-        { id: 'vinicius', name: 'Vinicius Junior', category: 'PLAYER', entityKey: 'player-vinicius-jr' },
-    ],
-    germany: [
-        { id: 'germany-intl', name: 'Germany (International)', category: 'NATION', entityKey: 'nation-germany' },
-        { id: 'bundesliga', name: 'Bundesliga', category: 'LEAGUE', entityKey: 'league-bundesliga' },
-        { id: 'musiala', name: 'Jamal Musiala', category: 'PLAYER', entityKey: 'player-musiala' },
-    ],
-    england: [
-        { id: 'england-intl', name: 'England (International)', category: 'NATION', entityKey: 'nation-england' },
-        { id: 'premier-league', name: 'Premier League', category: 'LEAGUE', entityKey: 'league-premier-league' },
-        { id: 'bellingham', name: 'Jude Bellingham', category: 'PLAYER', entityKey: 'player-bellingham' },
-    ],
-    portugal: [
-        { id: 'portugal-intl', name: 'Portugal (International)', category: 'NATION', entityKey: 'nation-portugal' },
-        { id: 'primeira-liga', name: 'Primeira Liga', category: 'LEAGUE', entityKey: 'league-primeira-liga' },
-        { id: 'ronaldo', name: 'Cristiano Ronaldo', category: 'PLAYER', entityKey: 'player-ronaldo' },
-    ],
-}
+const toggle = (items, item) => items.includes(item) ? items.filter((value) => value !== item) : [...items, item]
+
+const ChoiceChip = ({ active, children, onClick }) => (
+    <button type="button" aria-pressed={active} onClick={onClick} className={`flex min-h-11 items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm font-semibold transition-colors ${active ? 'border-emerald-400 bg-emerald-400/10 text-emerald-200' : 'border-slate-700 bg-slate-900/70 text-slate-300 hover:border-slate-500'}`}>
+        <span className={`grid size-4 shrink-0 place-items-center rounded border ${active ? 'border-emerald-400 bg-emerald-400 text-slate-950' : 'border-slate-600'}`}>
+            {active ? <Check className="size-3" strokeWidth={3} aria-hidden="true" /> : null}
+        </span>
+        {children}
+    </button>
+)
+
+const TeamCard = ({ active, onClick, team }) => (
+    <button type="button" aria-pressed={active} onClick={onClick} className={`relative flex min-h-20 items-center gap-3 rounded-lg border p-3 text-left transition-colors ${active ? 'border-emerald-400 bg-emerald-400/10 shadow-[0_0_18px_rgba(52,211,153,0.12)]' : 'border-slate-700 bg-slate-900/70 hover:border-slate-500 hover:bg-slate-800'}`}>
+        <TeamImage team={team} className="h-9 w-12 rounded object-cover" fallbackClassName="border border-slate-600 bg-slate-800 text-slate-400" />
+        <span className="min-w-0">
+            <span className="block truncate text-sm font-bold text-white">{team.name}</span>
+            <span className="mt-0.5 block truncate text-xs text-slate-400">{team.league || 'Independent'}</span>
+        </span>
+        {active ? <span className="absolute right-2 top-2 grid size-5 place-items-center rounded-full bg-emerald-400 text-slate-950"><Check className="size-3.5" strokeWidth={3} aria-hidden="true" /></span> : null}
+    </button>
+)
 
 const SignupStepTwo = () => {
     const navigate = useNavigate()
-    const [selectedTeams, setSelectedTeams] = useState(['france'])
-    const [query, setQuery] = useState('')
-    const [followedEntities, setFollowedEntities] = useState(new Set())
-    const [requestedRole, setRequestedRole] = useState('public')
+    const location = useLocation()
+    const [step, setStep] = useState(1)
+    const [requestedRole, setRequestedRole] = useState('fan')
+    const [teams, setTeams] = useState([])
+    const [teamSearch, setTeamSearch] = useState('')
+    const [selectedClubId, setSelectedClubId] = useState(null)
+    const [selectedNationalTeamId, setSelectedNationalTeamId] = useState(null)
+    const [selectedCompetitions, setSelectedCompetitions] = useState([])
+    const [selectedLeagues, setSelectedLeagues] = useState([])
+    const [selectedInsights, setSelectedInsights] = useState(['match_predictions', 'underdog_insights'])
+    const [isLoadingTeams, setIsLoadingTeams] = useState(true)
+    const [teamsError, setTeamsError] = useState('')
     const [selectionError, setSelectionError] = useState('')
-    const [isLoading, setIsLoading] = useState(false)
-    const [error, setError] = useState('')
+    const [isSubmitting, setIsSubmitting] = useState(false)
+    const [submitError, setSubmitError] = useState('')
 
-    const totalSelections = selectedTeams.length + followedEntities.size
-    const canAddMore = totalSelections < MAX_SELECTIONS
-    const selectedFavoriteIds = useMemo(
-        () => [...selectedTeams, ...Array.from(followedEntities)].slice(0, MAX_SELECTIONS),
-        [followedEntities, selectedTeams],
-    )
+    const signupData = useMemo(() => {
+        if (location.state?.signupData) return location.state.signupData
+        try {
+            const stored = sessionStorage.getItem(SIGNUP_STEP_ONE_STORAGE_KEY)
+            return stored ? JSON.parse(stored) : null
+        } catch {
+            return null
+        }
+    }, [location.state])
 
     useEffect(() => {
-        const storedStepOne = sessionStorage.getItem(SIGNUP_STEP_ONE_STORAGE_KEY)
-
-        if (!storedStepOne) {
-            navigate('/signup', { replace: true })
-            return
-        }
-
-        try {
-            const stepOneData = JSON.parse(storedStepOne)
-
-            if (!stepOneData?.email) {
-                sessionStorage.removeItem(SIGNUP_STEP_ONE_STORAGE_KEY)
-                navigate('/signup', { replace: true })
+        const controller = new AbortController()
+        const loadTeams = async () => {
+            try {
+                const data = await fetchTeams({ signal: controller.signal })
+                setTeams(data)
+                setTeamsError(data.length ? '' : 'No teams are available yet.')
+            } catch (error) {
+                if (error.name !== 'AbortError') setTeamsError(error instanceof Error ? error.message : 'Unable to load teams.')
+            } finally {
+                if (!controller.signal.aborted) setIsLoadingTeams(false)
             }
-        } catch {
-            sessionStorage.removeItem(SIGNUP_STEP_ONE_STORAGE_KEY)
-            navigate('/signup', { replace: true })
         }
-    }, [navigate])
+        loadTeams()
+        return () => controller.abort()
+    }, [])
 
-    const trendingHighlights = useMemo(() => {
-        const sourceTeams = selectedTeams.length > 0 ? selectedTeams : ['france', 'argentina']
-        const merged = sourceTeams.flatMap((teamId) => highlightsByTeam[teamId] ?? [])
-        const unique = Array.from(new Map(merged.map((item) => [item.id, item])).values())
+    const filteredTeams = useMemo(() => {
+        const query = teamSearch.trim().toLowerCase()
+        return query ? teams.filter((team) => `${team.name} ${team.league ?? ''}`.toLowerCase().includes(query)) : teams
+    }, [teamSearch, teams])
+    const nationalTeams = filteredTeams.filter(isNationalTeam)
+    const clubTeams = filteredTeams.filter((team) => !isNationalTeam(team))
+    const leagueOptions = useMemo(() => [...new Set(teams.map((team) => team.league).filter((league) => league && league !== 'International'))].sort(), [teams])
+    const selectedClub = teams.find((team) => String(team.id) === selectedClubId) ?? null
+    const selectedNationalTeam = teams.find((team) => String(team.id) === selectedNationalTeamId) ?? null
 
-        const normalized = query.trim().toLowerCase()
-        if (!normalized) {
-            return unique
+    const finish = async () => {
+        if (!selectedClub && !selectedNationalTeam) {
+            setSelectionError('Choose at least one favorite club or national team.')
+            return
         }
-
-        return unique.filter((item) => {
-            const haystack = `${item.name} ${item.category}`.toLowerCase()
-            return haystack.includes(normalized)
-        })
-    }, [query, selectedTeams])
-
-    const toggleTeam = (teamId) => {
-        const isSelected = selectedTeams.includes(teamId)
-
-        if (isSelected) {
-            setSelectedTeams((prev) => prev.filter((id) => id !== teamId))
-            setSelectionError('')
+        if (!signupData?.email) {
+            setSubmitError('Your signup details expired. Please start again.')
             return
         }
 
-        if (!canAddMore) {
-            setSelectionError(`You can select up to ${MAX_SELECTIONS} favorites during setup.`)
-            return
-        }
-
-        setSelectedTeams((prev) => [...prev, teamId])
         setSelectionError('')
-    }
-
-    const toggleFollowEntity = (entityKey) => {
-        const next = new Set(followedEntities)
-
-        if (next.has(entityKey)) {
-            next.delete(entityKey)
-            setFollowedEntities(next)
-            setSelectionError('')
-            return
+        setSubmitError('')
+        setIsSubmitting(true)
+        const selectedEntities = [
+            selectedClub && { type: 'club_team', ...toTeamPreference(selectedClub) },
+            selectedNationalTeam && { type: 'national_team', ...toTeamPreference(selectedNationalTeam) },
+            ...selectedCompetitions.map((name) => ({ type: 'competition', name })),
+            ...selectedLeagues.map((name) => ({ type: 'league', name })),
+        ].filter(Boolean)
+        const favorites = {
+            club_team: selectedClub ? toTeamPreference(selectedClub) : null,
+            national_team: selectedNationalTeam ? toTeamPreference(selectedNationalTeam) : null,
+            preferred_competitions: selectedCompetitions,
+            tracked_leagues: selectedLeagues,
+            insight_preferences: selectedInsights,
+            nationalTeams: selectedNationalTeam ? [selectedNationalTeam.name.toLowerCase()] : [],
+            entities: selectedEntities,
         }
-
-        if (!canAddMore) {
-            setSelectionError(`You can select up to ${MAX_SELECTIONS} favorites during setup.`)
-            return
-        }
-
-        next.add(entityKey)
-        setFollowedEntities(next)
-        setSelectionError('')
-    }
-
-    const handleCompleteSetup = () => {
-        if (isLoading) {
-            return
-        }
-
-        if (totalSelections === 0 || totalSelections > MAX_SELECTIONS) {
-            setSelectionError(`Choose between 1 and ${MAX_SELECTIONS} favorites to continue.`)
-            return
-        }
-
-        const storedStepOne = sessionStorage.getItem(SIGNUP_STEP_ONE_STORAGE_KEY)
-
-        if (!storedStepOne) {
-            setSelectionError('Signup session expired. Please complete step 1 again.')
-            navigate('/signup')
-            return
-        }
-
-        let stepOneCredentials
-
         try {
-            stepOneCredentials = JSON.parse(storedStepOne)
-        } catch {
+            const metadata = { full_name: signupData.fullName, requested_role: requestedRole, selected_entities: selectedEntities, favorites, onboarding_completed: true }
+            const { data, error: sessionError } = await supabase.auth.getSession()
+            if (sessionError) throw sessionError
+            const activeUser = data.session?.user
+
+            if (activeUser && (!signupData.userId || activeUser.id === signupData.userId)) {
+                const { error: updateError } = await supabase.auth.updateUser({ data: metadata })
+                if (updateError) throw updateError
+                const { error: signOutError } = await supabase.auth.signOut()
+                if (signOutError) throw signOutError
+                sessionStorage.removeItem(PENDING_ONBOARDING_STORAGE_KEY)
+            } else {
+                sessionStorage.setItem(PENDING_ONBOARDING_STORAGE_KEY, JSON.stringify({ email: signupData.email, metadata }))
+            }
+
             sessionStorage.removeItem(SIGNUP_STEP_ONE_STORAGE_KEY)
-            setSelectionError('Signup session could not be restored. Please complete step 1 again.')
-            navigate('/signup')
-            return
+            localStorage.setItem('fifa-iq.onboarding.favorites', JSON.stringify(favorites))
+            navigate('/login', { replace: true, state: { email: signupData.email, message: 'Account created successfully! Please log in.' } })
+        } catch (error) {
+            console.error('Unable to complete onboarding:', error)
+            setSubmitError(error instanceof Error ? error.message : 'Unable to save your profile. Please try again.')
+        } finally {
+            setIsSubmitting(false)
         }
-
-        const completedSignupPayload = {
-            ...stepOneCredentials,
-            requestedRole,
-            selectedEntities: selectedFavoriteIds,
-            favorites: {
-                nationalTeams: selectedFavoriteIds.filter((id) => selectedTeams.includes(id)),
-                entities: selectedFavoriteIds.filter((id) => followedEntities.has(id)),
-            },
-        }
-
-        setIsLoading(true)
-        setError('')
-
-        setTimeout(() => {
-            // TODO: Send completedSignupPayload to the registration API when the backend is available.
-            void completedSignupPayload
-            sessionStorage.removeItem(SIGNUP_STEP_ONE_STORAGE_KEY)
-            localStorage.setItem('fifa-iq.onboarding.favorites', JSON.stringify(completedSignupPayload.favorites))
-            setIsLoading(false)
-
-            navigate('/login', {
-                state: {
-                    message: 'Account setup complete! Please log in.',
-                    fullName: stepOneCredentials.fullName,
-                    email: stepOneCredentials.email,
-                    role: stepOneCredentials.role,
-                    requestedRole,
-                    favorites: {
-                        selectedEntities: selectedFavoriteIds,
-                        nationalTeams: selectedFavoriteIds.filter((id) => selectedTeams.includes(id)),
-                        entities: selectedFavoriteIds.filter((id) => followedEntities.has(id)),
-                    },
-                },
-            })
-        }, 1500)
     }
 
     return (
-        <div className="min-h-screen bg-[#171B26] text-white px-4 py-5 sm:px-8">
-            <main className="relative mx-auto w-full max-w-7xl min-h-[calc(100vh-2.5rem)] rounded-3xl border border-white/5 bg-linear-to-b from-[#1C2230] to-[#171B26] shadow-2xl overflow-hidden px-6 py-7 sm:px-8 lg:px-10 lg:py-8">
-                <div className="absolute -bottom-8 left-0 right-0 pointer-events-none select-none text-center text-[72px] sm:text-[120px] lg:text-[170px] font-black leading-none tracking-[-0.04em] text-[#8A7AF6]/6">
-                    UNRIVALED INSIGHT
-                </div>
-
-                <section className="relative z-10">
-                    <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="space-y-2 max-w-2xl">
-                            <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#8A90A8]">
-                                Step 2 of 2: Tailor your experience
-                            </p>
-                            <h1 className="text-4xl md:text-5xl font-black tracking-tight text-[#E9ECF8]">
-                                Curate Your Feed
-                            </h1>
-                            <p className="text-[#AAB0C5] max-w-xl text-base leading-7">
-                                Select up to {MAX_SELECTIONS} favorites to receive real-time tactical insights and personalized analytical defaults. Selected: {totalSelections}/{MAX_SELECTIONS}.
-                            </p>
-                        </div>
-
-                        <div className="self-start rounded-full border border-[#2D3346] bg-[#202637]/80 px-4 py-2.5 min-w-45">
-                            <div className="flex items-center gap-2 text-xs font-semibold text-[#9FB5FF]">
-                                <span className="size-2 rounded-full bg-[#ADC6FF]" />
-                                <div className="h-1.5 flex-1 rounded-full bg-[#2C3448] overflow-hidden">
-                                    <span className="block h-full w-1/2 bg-linear-to-r from-[#ADC6FF] to-[#D0BCFF]" />
-                                </div>
-                                50% Complete
-                            </div>
-                        </div>
+        <div className="min-h-screen bg-slate-950 px-4 py-10 text-white sm:px-6">
+            <main className="mx-auto w-full max-w-6xl">
+                <header className="mb-8 border-b border-slate-800 pb-6">
+                    <p className="text-xs font-bold uppercase tracking-[0.24em] text-emerald-400">Profile setup</p>
+                    <div className="mt-3 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                        <div><h1 className="text-3xl font-black sm:text-4xl">Build your FIFA-IQ feed</h1><p className="mt-2 text-sm leading-6 text-slate-400">Choose your role, teams, competitions, and analysis preferences.</p></div>
+                        <span className="text-sm font-bold text-slate-400">Step {step} of 2</span>
                     </div>
+                </header>
 
-                    <div className="mt-10 grid grid-cols-1 gap-6 xl:grid-cols-[1.45fr_1fr]">
-                        <section className="space-y-4">
-                            <div className="flex items-center justify-between gap-2 text-[#D5DBEF]">
-                                <div className="flex items-center gap-2">
-                                    <Trophy className="size-4.5" />
-                                    <h2 className="text-2xl font-semibold tracking-tight">National Teams</h2>
-                                </div>
-                                <p className="text-xs text-[#8FA3DB] font-semibold">
-                                    Selected: {totalSelections}/{MAX_SELECTIONS}
-                                </p>
-                            </div>
-
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                {nationalTeams.map((team) => {
-                                    const active = selectedTeams.includes(team.id)
-                                    const disabled = !active && !canAddMore
-                                    return (
-                                        <button
-                                            key={team.id}
-                                            type="button"
-                                            onClick={() => toggleTeam(team.id)}
-                                            disabled={disabled}
-                                            className={`relative rounded-2xl border p-4 sm:p-5 min-h-32.5 text-left transition-colors ${
-                                                active
-                                                    ? 'border-[#7B91D8] bg-[#252B3D]'
-                                                    : 'border-[#2B3244] bg-[#1C2231] hover:border-[#45506D]'
-                                            } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                        >
-                                            <div className="mb-6 inline-flex size-11 items-center justify-center rounded-xl bg-black" aria-hidden="true" />
-                                            <p className="text-sm font-semibold text-[#DCE2F5]">{team.name}</p>
-                                            {active && (
-                                                <span className="absolute right-3 top-3 inline-flex size-4 items-center justify-center rounded-full bg-[#AFC4FF] text-[#112443]">
-                                                    <Check className="size-3" strokeWidth={3} />
-                                                </span>
-                                            )}
-                                        </button>
-                                    )
-                                })}
-
-                                <button
-                                    type="button"
-                                    className="rounded-2xl border border-dashed border-[#3B4258] bg-[#1A202D] p-4 sm:p-5 min-h-32.5 flex flex-col items-center justify-center gap-1 text-center text-[#707A94] hover:border-[#5A657F] transition-colors"
-                                >
-                                    <Plus className="size-5" />
-                                    <span className="text-sm font-medium">Browse More</span>
-                                </button>
-                            </div>
-                        </section>
-
-                        <section className="rounded-2xl border border-[#2B3244] bg-[#1E2433]/90 p-4 sm:p-5">
-                            <div className="flex items-center gap-2 text-[#D5DBEF] mb-4">
-                                <Users className="size-4.5" />
-                                <h2 className="text-2xl font-semibold tracking-tight">Follow Entities</h2>
-                            </div>
-
-                            <label htmlFor="entity-search" className="relative block mb-4">
-                                <Search className="size-4.5 absolute left-4 top-1/2 -translate-y-1/2 text-[#707A94]" />
-                                <input
-                                    id="entity-search"
-                                    type="text"
-                                    placeholder="Search clubs, nations, or players..."
-                                    value={query}
-                                    onChange={(e) => setQuery(e.target.value)}
-                                    className="w-full rounded-xl border border-[#31384C] bg-[#262C3B] pl-11 pr-4 py-3 text-sm text-[#E7EAFA] placeholder:text-[#7B839A] outline-none focus:border-[#7D91CC]"
-                                />
-                            </label>
-
-                            <div className="rounded-xl border border-[#2D3448] bg-[#202737] overflow-hidden">
-                                <div className="flex items-center justify-between px-4 py-3 border-b border-[#2D3448]">
-                                    <p className="text-[10px] tracking-[0.18em] uppercase font-bold text-[#7A849F]">
-                                        Trending Highlights
-                                    </p>
-                                    <span className="size-1.5 rounded-full bg-[#ADC6FF]" />
-                                </div>
-
-                                <div className="p-2 space-y-1.5">
-                                    {trendingHighlights.map((item) => {
-                                        const isFollowing = followedEntities.has(item.entityKey)
-                                        const disabled = !isFollowing && !canAddMore
-                                        return (
-                                            <div
-                                                key={item.id}
-                                                className={`flex items-center justify-between rounded-xl px-3 py-2.5 transition-colors ${
-                                                    isFollowing ? 'bg-[#2B3244]' : 'bg-transparent hover:bg-[#262D3E]'
-                                                }`}
-                                            >
-                                                <div className="flex items-center gap-3 min-w-0">
-                                                    <span className="inline-flex size-9 items-center justify-center rounded-lg bg-[#2C3447] text-[10px] font-black text-[#BFC9EE]">
-                                                        {item.name.slice(0, 2).toUpperCase()}
-                                                    </span>
-                                                    <div className="min-w-0">
-                                                        <p className="text-sm font-semibold text-[#DFE5FA] truncate">{item.name}</p>
-                                                        <p className="text-[10px] tracking-[0.15em] uppercase text-[#7B839A] truncate">
-                                                            {item.category}
-                                                        </p>
-                                                    </div>
-                                                </div>
-
-                                                <button
-                                                    type="button"
-                                                    disabled={disabled}
-                                                    onClick={() => toggleFollowEntity(item.entityKey)}
-                                                    className={`inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-                                                        isFollowing
-                                                            ? 'bg-[#324262] text-[#C9D8FF] border border-[#5E75AD]'
-                                                            : 'bg-[#2A3247] text-[#B7C3E7] hover:bg-[#33405D]'
-                                                    } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                                >
-                                                    {isFollowing && <Check className="size-3.5" />}
-                                                    {isFollowing ? 'Following' : 'Follow'}
-                                                </button>
-                                            </div>
-                                        )
-                                    })}
-
-                                    {trendingHighlights.length === 0 && (
-                                        <div className="rounded-lg border border-dashed border-[#3A425A] px-4 py-6 text-center text-sm text-[#7F88A1]">
-                                            No entities match your search.
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </section>
-                    </div>
-
-                    <section className="mt-6 rounded-2xl border border-[#2B3244] bg-[#1E2433]/90 p-4 sm:p-5">
-                        <div className="flex items-center justify-between gap-3 mb-4">
-                            <div>
-                                <h2 className="text-2xl font-semibold tracking-tight text-[#D5DBEF]">
-                                    Requested Role
-                                </h2>
-                                <p className="text-sm text-[#8A90A8] mt-1">
-                                    Choose the access level you want to request for your account.
-                                </p>
-                            </div>
-                            <span className="rounded-full border border-[#2D3346] bg-[#202637]/80 px-3 py-1 text-[10px] font-bold tracking-[0.18em] uppercase text-[#9FB5FF]">
-                                Default: Public
-                            </span>
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                            {SIGNUP_ROLES.map((role) => {
-                                const active = requestedRole === role.id
-
-                                return (
-                                    <button
-                                        key={role.id}
-                                        type="button"
-                                        onClick={() => setRequestedRole(role.id)}
-                                        className={`rounded-2xl border p-4 text-left transition-colors ${
-                                            active
-                                                ? 'border-[#7B91D8] bg-[#252B3D]'
-                                                : 'border-[#2B3244] bg-[#1C2231] hover:border-[#45506D]'
-                                        }`}
-                                    >
-                                        <div className="flex items-center justify-between gap-2 mb-3">
-                                            <p className="text-sm font-semibold text-[#DCE2F5]">
-                                                {role.label}
-                                            </p>
-                                            {active && (
-                                                <span className="inline-flex size-5 items-center justify-center rounded-full bg-[#AFC4FF] text-[#112443]">
-                                                    <Check className="size-3" strokeWidth={3} />
-                                                </span>
-                                            )}
-                                        </div>
-                                        <p className="text-sm leading-6 text-[#AAB0C5]">
-                                            {role.summary}
-                                        </p>
-                                    </button>
-                                )
+                {step === 1 ? (
+                    <section aria-labelledby="role-heading">
+                        <h2 id="role-heading" className="text-xl font-bold">How do you use football intelligence?</h2>
+                        <div className="mt-5 grid gap-4 md:grid-cols-3">
+                            {roles.map(({ id, title, description, icon: Icon }) => {
+                                const active = requestedRole === id
+                                return <button key={id} type="button" aria-pressed={active} onClick={() => { setRequestedRole(id); setSelectionError('') }} className={`min-h-52 rounded-lg border p-6 text-left transition-colors ${active ? 'border-emerald-400 bg-emerald-400/10' : 'border-slate-700 bg-slate-900 hover:border-slate-500'}`}>{React.createElement(Icon, { className: active ? 'text-emerald-400' : 'text-slate-400', 'aria-hidden': true })}<h3 className="mt-8 text-lg font-bold">{title}</h3><p className="mt-2 text-sm leading-6 text-slate-400">{description}</p></button>
                             })}
                         </div>
+                        <div className="mt-8 flex justify-end"><button type="button" onClick={() => setStep(2)} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-emerald-400 px-5 font-bold text-slate-950 hover:bg-emerald-300">Continue <ArrowRight className="size-4" aria-hidden="true" /></button></div>
                     </section>
-
-                    {selectionError && (
-                        <p className="mt-4 text-sm text-rose-300">{selectionError}</p>
-                    )}
-
-                    {error && (
-                        <p className="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-                            {error}
-                        </p>
-                    )}
-
-                    <footer className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                        <button
-                            type="button"
-                            onClick={() => navigate('/signup')}
-                            className="inline-flex items-center gap-2 text-[#C8CDE0] hover:text-white transition-colors"
-                        >
-                            <ChevronLeft className="size-4.5" />
-                            Back
-                        </button>
-
-                        <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
-                            <p className="text-[10px] tracking-[0.2em] uppercase font-bold text-[#66708A]">
-                                Setup finalizing...
-                            </p>
-                            <button
-                                type="button"
-                                disabled={isLoading || totalSelections === 0 || totalSelections > MAX_SELECTIONS}
-                                onClick={handleCompleteSetup}
-                                className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 bg-linear-to-r from-[#ADC6FF] to-[#D0BCFF] text-[#112443] font-bold hover:from-[#9AB8FF] hover:to-[#BFA1FF] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {isLoading ? (
-                                    <>
-                                        <svg
-                                            className="size-4 animate-spin"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            aria-hidden="true"
-                                        >
-                                            <circle
-                                                className="opacity-25"
-                                                cx="12"
-                                                cy="12"
-                                                r="10"
-                                                stroke="currentColor"
-                                                strokeWidth="4"
-                                            />
-                                            <path
-                                                className="opacity-75"
-                                                fill="currentColor"
-                                                d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4Z"
-                                            />
-                                        </svg>
-                                        Completing...
-                                    </>
-                                ) : (
-                                    <>
-                                        Complete Setup
-                                        <Rocket className="size-4" />
-                                    </>
-                                )}
-                            </button>
+                ) : (
+                    <section aria-labelledby="favorites-heading">
+                        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
+                            <div><h2 id="favorites-heading" className="text-xl font-bold">Personalize your dashboard highlights</h2><p className="mt-2 text-sm text-slate-400">Team selections are loaded from the live FIFA-IQ catalog.</p></div>
+                            <label className="relative block w-full md:w-80"><span className="sr-only">Search teams</span><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" aria-hidden="true" /><input value={teamSearch} onChange={(event) => setTeamSearch(event.target.value)} placeholder="Search teams or leagues" className="h-11 w-full rounded-lg border border-slate-700 bg-slate-900 pl-10 pr-3 text-sm outline-none placeholder:text-slate-500 focus:border-emerald-400" /></label>
                         </div>
-                    </footer>
-                </section>
+                        {isLoadingTeams ? <div className="mt-6 flex min-h-40 items-center justify-center gap-3 border-y border-slate-800 text-sm text-slate-400"><LoaderCircle className="size-5 animate-spin" aria-hidden="true" /> Loading teams...</div> : (
+                            <div className="mt-7 grid gap-8 lg:grid-cols-2">
+                                <div><h3 className="text-sm font-bold uppercase tracking-widest text-slate-300">Favorite national team</h3><div className="mt-3 grid max-h-72 gap-3 overflow-y-auto pr-1 sm:grid-cols-2">{nationalTeams.map((team) => <TeamCard key={team.id} team={team} active={selectedNationalTeamId === String(team.id)} onClick={() => setSelectedNationalTeamId(selectedNationalTeamId === String(team.id) ? null : String(team.id))} />)}</div>{!nationalTeams.length ? <p className="mt-3 text-sm text-slate-500">No matching national teams.</p> : null}</div>
+                                <div><h3 className="text-sm font-bold uppercase tracking-widest text-slate-300">Favorite club</h3><div className="mt-3 grid max-h-72 gap-3 overflow-y-auto pr-1 sm:grid-cols-2">{clubTeams.map((team) => <TeamCard key={team.id} team={team} active={selectedClubId === String(team.id)} onClick={() => setSelectedClubId(selectedClubId === String(team.id) ? null : String(team.id))} />)}</div>{!clubTeams.length ? <p className="mt-3 text-sm text-slate-500">No matching club teams are currently in the catalog.</p> : null}</div>
+                            </div>
+                        )}
+                        {teamsError ? <p className="mt-4 text-sm text-amber-300" role="status">{teamsError}</p> : null}
+                        <div className="mt-9 grid gap-8 border-t border-slate-800 pt-8 lg:grid-cols-3">
+                            <div><h3 className="text-sm font-bold uppercase tracking-widest text-slate-300">Preferred competitions</h3><div className="mt-3 grid gap-2">{competitions.map((item) => <ChoiceChip key={item} active={selectedCompetitions.includes(item)} onClick={() => setSelectedCompetitions(toggle(selectedCompetitions, item))}>{item}</ChoiceChip>)}</div></div>
+                            <div><h3 className="text-sm font-bold uppercase tracking-widest text-slate-300">Tracked leagues</h3><div className="mt-3 grid gap-2">{leagueOptions.map((item) => <ChoiceChip key={item} active={selectedLeagues.includes(item)} onClick={() => setSelectedLeagues(toggle(selectedLeagues, item))}>{item}</ChoiceChip>)}{!leagueOptions.length ? <p className="text-sm leading-6 text-slate-500">League choices appear when clubs are added to the catalog.</p> : null}</div></div>
+                            <div><h3 className="text-sm font-bold uppercase tracking-widest text-slate-300">Notifications & insights</h3><div className="mt-3 grid gap-2">{insights.map(({ id, label, icon: Icon }) => <ChoiceChip key={id} active={selectedInsights.includes(id)} onClick={() => setSelectedInsights(toggle(selectedInsights, id))}>{React.createElement(Icon, { className: 'size-4', 'aria-hidden': true })}{label}</ChoiceChip>)}</div></div>
+                        </div>
+                        {selectionError ? <p className="mt-5 text-sm text-rose-300" role="alert">{selectionError}</p> : null}
+                        {submitError ? <p className="mt-5 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-200" role="alert">{submitError}</p> : null}
+                        <div className="mt-8 flex flex-col-reverse gap-3 border-t border-slate-800 pt-6 sm:flex-row sm:justify-between">
+                            <button type="button" onClick={() => setStep(1)} disabled={isSubmitting} className="min-h-11 rounded-lg border border-slate-700 px-5 font-bold text-slate-300 hover:border-slate-500 disabled:opacity-50">Back</button>
+                            <button type="button" onClick={finish} disabled={isSubmitting || isLoadingTeams} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-emerald-400 px-5 font-bold text-slate-950 hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50">{isSubmitting ? <LoaderCircle className="size-4 animate-spin" aria-hidden="true" /> : null}{isSubmitting ? 'Saving profile...' : 'Complete setup'}</button>
+                        </div>
+                    </section>
+                )}
             </main>
         </div>
     )

@@ -1,15 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
 import { AuthContextObject } from './useAuth'
-
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-
-if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error('Missing Supabase frontend environment variables.')
-}
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+import { supabase } from '../services/supabaseClient'
 
 const mapAuthUser = (authUser) => {
     if (!authUser) {
@@ -96,7 +87,7 @@ export const AuthProvider = ({ children }) => {
     // Persist full_name into user_metadata at registration so mapAuthUser can
     // derive firstName/fullName across the app without a second write.
     const signUp = async ({ email, password, fullName }) => {
-        return supabase.auth.signUp({
+        const result = await supabase.auth.signUp({
             email,
             password,
             options: fullName
@@ -107,10 +98,25 @@ export const AuthProvider = ({ children }) => {
                   }
                 : undefined,
         })
+
+        if (result.data.session) {
+            setSession(result.data.session)
+            setUser(mapAuthUser(result.data.session.user))
+        }
+
+        return result
     }
 
     const signIn = async ({ email, password }) => {
-        return await supabase.auth.signInWithPassword({ email, password })
+        const result = await supabase.auth.signInWithPassword({ email, password })
+
+        if (result.data.session) {
+            setSession(result.data.session)
+            setUser(mapAuthUser(result.data.session.user))
+            setLoading(false)
+        }
+
+        return result
     }
 
     const signInWithGoogle = async () => {

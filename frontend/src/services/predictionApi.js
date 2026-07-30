@@ -1,46 +1,12 @@
-import { supabase } from '../context/AuthContext'
-
-// Base URL for the backend API. Configurable via VITE_API_BASE_URL so the same
-// build can target local, staging, or production backends; falls back to the
-// local development server when the variable is undefined.
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1'
-
-async function getAuthHeaders() {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  const token = session?.access_token
-
-  if (!token) {
-    return null
-  }
-
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  }
-}
+import { authenticatedFetch } from './api'
 
 // Compute outcome probabilities for two teams by name WITHOUT persisting to the DB.
 export async function computePrediction({ homeTeam, awayTeam }) {
   try {
-    const headers = await getAuthHeaders()
-
-    if (!headers) {
-      return { data: null, error: 'Authentication required' }
-    }
-
-    const response = await fetch(`${API_BASE_URL}/predictions/compute`, {
+    const data = await authenticatedFetch('/predictions/compute', {
       method: 'POST',
-      headers,
       body: JSON.stringify({ home_team: homeTeam, away_team: awayTeam }),
     })
-
-    const data = await response.json().catch(() => null)
-
-    if (!response.ok) {
-      throw new Error(data?.detail || 'Failed to generate prediction.')
-    }
 
     return {
       data: {
@@ -65,15 +31,8 @@ export async function computePrediction({ homeTeam, awayTeam }) {
 // auto-generated server-side, so the client never sends a manual match id.
 export async function savePrediction({ homeTeam, awayTeam, winHome, winAway, draw, insight }) {
   try {
-    const headers = await getAuthHeaders()
-
-    if (!headers) {
-      return { data: null, error: 'Authentication required' }
-    }
-
-    const response = await fetch(`${API_BASE_URL}/predictions/save`, {
+    const data = await authenticatedFetch('/predictions/save', {
       method: 'POST',
-      headers,
       body: JSON.stringify({
         home_team: homeTeam,
         away_team: awayTeam,
@@ -83,12 +42,6 @@ export async function savePrediction({ homeTeam, awayTeam, winHome, winAway, dra
         underdog_insight: insight,
       }),
     })
-
-    const data = await response.json().catch(() => null)
-
-    if (!response.ok) {
-      throw new Error(data?.detail || 'Failed to save prediction.')
-    }
 
     return { data, error: null }
   } catch (error) {
@@ -102,22 +55,9 @@ export async function savePrediction({ homeTeam, awayTeam, winHome, winAway, dra
 // Legacy: generate + persist in one call against an explicit match id.
 export async function generatePrediction(matchId) {
   try {
-    const headers = await getAuthHeaders()
-
-    if (!headers) {
-      return { data: null, error: 'Authentication required' }
-    }
-
-    const response = await fetch(`${API_BASE_URL}/predictions/generate/${matchId}`, {
+    const data = await authenticatedFetch(`/predictions/generate/${matchId}`, {
       method: 'POST',
-      headers,
     })
-
-    const data = await response.json().catch(() => null)
-
-    if (!response.ok) {
-      throw new Error(data?.detail || 'Failed to generate prediction.')
-    }
 
     return {
       data: {
@@ -133,6 +73,20 @@ export async function generatePrediction(matchId) {
     return {
       data: null,
       error: error instanceof Error ? error.message : 'Backend is unreachable.',
+    }
+  }
+}
+
+export async function fetchPredictionHistory({ signal } = {}) {
+  try {
+    const data = await authenticatedFetch('/predictions/history', { signal })
+    return { data: Array.isArray(data) ? data : [], error: null, status: 200 }
+  } catch (error) {
+    if (error.name === 'AbortError') throw error
+    return {
+      data: [],
+      error: error instanceof Error ? error.message : 'Backend is unreachable.',
+      status: error.status ?? null,
     }
   }
 }

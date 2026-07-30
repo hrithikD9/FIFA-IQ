@@ -13,7 +13,12 @@ const UserDashboard = () => {
     const { user } = useAuth()
     const navigate = useNavigate()
     const location = useLocation()
-    const [accessDeniedMessage, setAccessDeniedMessage] = useState(location.state?.message ?? null)
+    const [accessDeniedMessage, setAccessDeniedMessage] = useState(() => {
+        if (location.state?.accessDenied) {
+            return location.state.message || 'Access Denied: Admin privileges required.'
+        }
+        return location.state?.message ?? null
+    })
     // Greet by first name; firstName already carries its own fallback chain
     // (first token of full name -> email username -> 'User') from mapAuthUser.
     const userName = user?.firstName || user?.fullName || user?.name || user?.email?.split('@')[0]
@@ -31,11 +36,9 @@ const UserDashboard = () => {
     // reappear on refresh/back navigation.
     useEffect(() => {
         if (location.state?.accessDenied) {
-            setAccessDeniedMessage(location.state.message || 'Access Denied: Admin privileges required.')
             navigate(location.pathname, { replace: true, state: {} })
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+    }, [location.pathname, location.state?.accessDenied, navigate])
 
     return (
         <div className="flex min-h-screen flex-col bg-[#0b0e14] text-white">

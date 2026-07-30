@@ -19,12 +19,14 @@ import StatCard from '../components/auth/StatCard'
 import PitchBackground from '../components/auth/PitchBackground'
 import { useAuth } from '../context/useAuth'
 
+const PENDING_ONBOARDING_STORAGE_KEY = 'fifa-iq.signup.pendingOnboarding'
+
 const Login = () => {
     const navigate = useNavigate()
     const location = useLocation()
-    const { signIn } = useAuth()
+    const { signIn, supabase } = useAuth()
     const successMessage = location.state?.message ?? ''
-    const [email, setEmail] = useState('')
+    const [email, setEmail] = useState(location.state?.email ?? '')
     const [password, setPassword] = useState('')
     const [showPassword, setShowPassword] = useState(false)
     const [remember, setRemember] = useState(false)
@@ -43,16 +45,30 @@ const Login = () => {
 
         try {
             const normalizedEmail = email.trim().toLowerCase()
-            const cleanPassword = password.trim()
-
-            const { error: signInError } = await signIn({ email: normalizedEmail, password: cleanPassword })
+            const { error: signInError } = await signIn({ email: normalizedEmail, password })
 
             if (signInError) {
                 setError(signInError.message)
                 return
             }
 
-            navigate('/')
+            navigate('/', { replace: true })
+
+            const pendingOnboarding = sessionStorage.getItem(PENDING_ONBOARDING_STORAGE_KEY)
+            if (pendingOnboarding) {
+                void (async () => {
+                    try {
+                        const pendingSignup = JSON.parse(pendingOnboarding)
+                        if (pendingSignup.email?.trim().toLowerCase() !== normalizedEmail) return
+
+                        const { error: updateError } = await supabase.auth.updateUser({ data: pendingSignup.metadata })
+                        if (updateError) throw updateError
+                        sessionStorage.removeItem(PENDING_ONBOARDING_STORAGE_KEY)
+                    } catch (metadataError) {
+                        console.error('Deferred onboarding metadata sync failed:', metadataError)
+                    }
+                })()
+            }
         } catch (submitError) {
             console.error('Login submission failed:', submitError)
             setError(submitError instanceof Error ? submitError.message : 'Unable to sign in right now.')

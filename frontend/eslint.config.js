@@ -1,5 +1,6 @@
 import js from '@eslint/js'
 import globals from 'globals'
+import importPlugin from 'eslint-plugin-import'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
@@ -24,6 +25,23 @@ export default defineConfig([
     },
     rules: {
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+    },
+  },
+  {
+    files: ['**/src/**/*.{js,jsx}'],
+    plugins: {
+      import: importPlugin,
+    },
+    settings: {
+      'import/resolver': {
+        node: {
+          extensions: ['.js', '.jsx'],
+          moduleDirectory: ['node_modules', 'frontend/node_modules'],
+        },
+      },
+    },
+    rules: {
+      'import/no-unresolved': 'error',
     },
   },
 ])

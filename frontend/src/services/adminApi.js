@@ -1,4 +1,4 @@
-import { supabase } from '../context/AuthContext'
+import { supabase } from './supabaseClient'
 
 // Base URL for the backend API. Configurable via VITE_API_BASE_URL so the same
 // build can target local, staging, or production backends; falls back to the

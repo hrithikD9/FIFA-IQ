@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import DashboardSidebar from '../components/dashboard/DashboardSidebar'
 import Navbar from '../components/Navbar'
 import { useAuth } from '../context/useAuth'
@@ -13,28 +13,28 @@ const PersonalSettings = () => {
     const [activeTab, setActiveTab] = useState(tabs[0])
     const [activeFilter, setActiveFilter] = useState(modelFilters[0])
 
-    // Live profile form state, hydrated from Supabase user_metadata on mount.
-    const [fullName, setFullName] = useState('')
-    const [avatarUrl, setAvatarUrl] = useState('')
-    const [preferredTeam, setPreferredTeam] = useState('')
-    const [tacticalPreference, setTacticalPreference] = useState('')
+    // Untouched fields follow live Supabase metadata. Only user edits need local
+    // state, so an auth refresh never requires synchronous effect hydration.
+    const profileDefaults = useMemo(() => {
+        const metadata = user?.user_metadata ?? {}
+        return {
+            fullName: metadata.full_name ?? metadata.fullName ?? metadata.name ?? '',
+            avatarUrl: metadata.avatar_url ?? metadata.avatarUrl ?? '',
+            preferredTeam: metadata.preferred_team ?? metadata.preferredTeam ?? '',
+            tacticalPreference: metadata.tactical_preference ?? metadata.tacticalPreference ?? '',
+        }
+    }, [user])
+    const [profileEdits, setProfileEdits] = useState({})
+    const fullName = profileEdits.fullName ?? profileDefaults.fullName
+    const avatarUrl = profileEdits.avatarUrl ?? profileDefaults.avatarUrl
+    const preferredTeam = profileEdits.preferredTeam ?? profileDefaults.preferredTeam
+    const tacticalPreference = profileEdits.tacticalPreference ?? profileDefaults.tacticalPreference
     const [isSavingProfile, setIsSavingProfile] = useState(false)
 
     // Password update state.
     const [newPassword, setNewPassword] = useState('')
     const [confirmPassword, setConfirmPassword] = useState('')
     const [isSavingPassword, setIsSavingPassword] = useState(false)
-
-    // Hydrate the form fields from the active Supabase user's metadata whenever
-    // the live user object changes (mount + after a successful update).
-    useEffect(() => {
-        const metadata = user?.user_metadata ?? {}
-
-        setFullName(metadata.full_name ?? metadata.fullName ?? metadata.name ?? '')
-        setAvatarUrl(metadata.avatar_url ?? metadata.avatarUrl ?? '')
-        setPreferredTeam(metadata.preferred_team ?? metadata.preferredTeam ?? '')
-        setTacticalPreference(metadata.tactical_preference ?? metadata.tacticalPreference ?? '')
-    }, [user])
 
     // Header greeting uses the friendly first name; the editable "Full Name"
     // input below is hydrated separately with the complete fullName value.
@@ -73,6 +73,7 @@ const PersonalSettings = () => {
 
             // Reflect changes in Navbar/UI immediately.
             await refreshUser()
+            setProfileEdits({})
             toast.success('Profile updated', 'Your profile details were saved successfully.')
         } catch (error) {
             toast.error('Update failed', error?.message || 'Unable to update your profile right now.')
@@ -297,7 +298,7 @@ const PersonalSettings = () => {
                                                 id="full-name"
                                                 type="text"
                                                 value={fullName}
-                                                onChange={(event) => setFullName(event.target.value)}
+                                                onChange={(event) => setProfileEdits((current) => ({ ...current, fullName: event.target.value }))}
                                                 className="mt-2 w-full rounded-xl border border-[#2B3244] bg-[#1C2231] px-4 py-2 text-sm text-white outline-none transition focus:border-[#ADC6FF]/50"
                                                 placeholder="Your full name"
                                             />
@@ -308,7 +309,7 @@ const PersonalSettings = () => {
                                                 id="avatar-url"
                                                 type="url"
                                                 value={avatarUrl}
-                                                onChange={(event) => setAvatarUrl(event.target.value)}
+                                                onChange={(event) => setProfileEdits((current) => ({ ...current, avatarUrl: event.target.value }))}
                                                 className="mt-2 w-full rounded-xl border border-[#2B3244] bg-[#1C2231] px-4 py-2 text-sm text-white outline-none transition focus:border-[#ADC6FF]/50"
                                                 placeholder="https://example.com/avatar.png"
                                             />
@@ -319,7 +320,7 @@ const PersonalSettings = () => {
                                                 id="preferred-team"
                                                 type="text"
                                                 value={preferredTeam}
-                                                onChange={(event) => setPreferredTeam(event.target.value)}
+                                                onChange={(event) => setProfileEdits((current) => ({ ...current, preferredTeam: event.target.value }))}
                                                 className="mt-2 w-full rounded-xl border border-[#2B3244] bg-[#1C2231] px-4 py-2 text-sm text-white outline-none transition focus:border-[#ADC6FF]/50"
                                                 placeholder="e.g. Real Madrid"
                                             />
@@ -330,7 +331,7 @@ const PersonalSettings = () => {
                                                 id="tactical-preference"
                                                 type="text"
                                                 value={tacticalPreference}
-                                                onChange={(event) => setTacticalPreference(event.target.value)}
+                                                onChange={(event) => setProfileEdits((current) => ({ ...current, tacticalPreference: event.target.value }))}
                                                 className="mt-2 w-full rounded-xl border border-[#2B3244] bg-[#1C2231] px-4 py-2 text-sm text-white outline-none transition focus:border-[#ADC6FF]/50"
                                                 placeholder="e.g. High press, 4-3-3"
                                             />
