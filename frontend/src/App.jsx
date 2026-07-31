@@ -7,6 +7,7 @@ import Login from './pages/Login'
 import Signup from './pages/Signup'
 import SignupStepTwo from './pages/SignupStepTwo'
 import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
 import UserDashboard from './pages/UserDashboard'
 import AdminDashboard from './pages/AdminDashboard'
 import LegacyTimelinePage from './pages/LegacyTimelinePage'
@@ -41,6 +42,7 @@ function App() {
       <Route path='/' element={<Home/>}/>
       <Route path='/login' element={<Login/>}/>
       <Route path='/forgot-password' element={<ForgotPassword/>}/>
+      <Route path='/reset-password' element={<ResetPassword/>}/>
       <Route path='/signup' element={<Signup/>}/>
       <Route
         path='/signup/step-2'

@@ -90,13 +90,16 @@ export const AuthProvider = ({ children }) => {
         const result = await supabase.auth.signUp({
             email,
             password,
-            options: fullName
-                ? {
-                      data: {
-                          full_name: fullName,
-                      },
-                  }
-                : undefined,
+            options: {
+                emailRedirectTo: `${window.location.origin}/login`,
+                ...(fullName
+                    ? {
+                          data: {
+                              full_name: fullName,
+                          },
+                      }
+                    : {}),
+            },
         })
 
         if (result.data.session) {

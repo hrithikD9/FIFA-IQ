@@ -93,6 +93,13 @@ const Signup = () => {
                 }),
             )
 
+            if (!data?.session) {
+                setSuccessMessage(
+                    'Verification email sent! Please check your inbox and click the confirmation link to activate your account.',
+                )
+                return
+            }
+
             navigate('/signup/step-2', {
                 state: {
                     fullName: fullName.trim(),
@@ -334,10 +341,10 @@ const Signup = () => {
 
                             <button
                                 type="submit"
-                                disabled={!isFormValid || isSubmitting}
+                                disabled={!isFormValid || isSubmitting || Boolean(successMessage)}
                                 className="w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl text-[#001A42] bg-linear-to-r from-[#ADC6FF] to-[#D0BCFF] hover:from-[#8FB3FF] hover:to-[#B58CFF] font-bold cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                {isSubmitting ? 'Creating Account...' : 'Continue to Role Selection'}
+                                {isSubmitting ? 'Creating Account...' : successMessage ? 'Check Your Email' : 'Continue to Role Selection'}
                                 <ArrowRight className="size-4.5" strokeWidth={2.5} aria-hidden="true" />
                             </button>
                         </form>

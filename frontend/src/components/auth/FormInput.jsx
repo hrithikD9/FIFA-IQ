@@ -11,6 +11,8 @@ const FormInput = ({
     autoComplete,
     rightElement,
     labelRight,
+    invalid = false,
+    describedBy,
 }) => {
     return (
         <div className="space-y-2">
@@ -40,7 +42,9 @@ const FormInput = ({
                     value={value}
                     onChange={onChange}
                     autoComplete={autoComplete}
-                    className="w-full pl-11 pr-11 py-3.5 rounded-xl bg-[#171B26] border border-[#262A35] text-white text-sm placeholder-[#52627A] outline-none transition-colors focus:border-[#ADC6FF]/60 focus:bg-[#1B2030]"
+                    aria-invalid={invalid}
+                    aria-describedby={describedBy}
+                    className={`w-full rounded-xl border bg-[#171B26] py-3.5 pl-11 pr-11 text-sm text-white outline-none transition-colors placeholder:text-[#52627A] focus:bg-[#1B2030] ${invalid ? 'border-rose-400/70 focus:border-rose-400' : 'border-[#262A35] focus:border-[#ADC6FF]/60'}`}
                 />
 
                 {rightElement && (
