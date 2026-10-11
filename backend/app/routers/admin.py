@@ -18,24 +18,10 @@ logger = logging.getLogger(__name__)
 # Admin authorization
 # ---------------------------------------------------------------------------
 def verify_admin_user(current_user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
-    """Enforce that the caller is an authenticated user with the `is_admin` flag.
-
-    Relies on `get_current_user` for the Supabase JWT lookup, then checks the
-    `is_admin` claim in user metadata (checked in `user_metadata`,
-    `app_metadata`, and raw top-level for resilience across Supabase setups).
-    Raises 403 for authenticated non-admins.
-    """
-    metadata: dict[str, Any] = {}
-    for key in ("user_metadata", "app_metadata"):
-        value = current_user.get(key)
-        if isinstance(value, dict):
-            metadata.update(value)
-
-    is_admin = bool(
-        metadata.get("is_admin")
-        or current_user.get("is_admin")  # top-level fallback
-        or metadata.get("role") == "admin"
-        or current_user.get("role") == "admin"
+    """Enforce admin access using server-controlled Supabase app metadata."""
+    app_metadata = current_user.get("app_metadata")
+    is_admin = isinstance(app_metadata, dict) and bool(
+        app_metadata.get("is_admin") or app_metadata.get("role") == "admin"
     )
 
     if not is_admin:
@@ -57,7 +43,7 @@ class TeamMetricsUpdate(BaseModel):
     be forward-compatible with future metric columns.
     """
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
     name: str | None = Field(default=None, min_length=1)
     league: str | None = None

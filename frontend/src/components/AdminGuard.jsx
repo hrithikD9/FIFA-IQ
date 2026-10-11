@@ -6,7 +6,7 @@ import { useAuth } from '../context/useAuth'
 //  - Unauthenticated visitors are sent to /login.
 //  - Authenticated non-admin users are sent to the User Dashboard (/dashboard)
 //    with an "Access Denied" banner passed via navigation state.
-//  - Only users with user_metadata.is_admin === true (mapped to user.isAdmin)
+//  - Only users with server-controlled admin metadata (mapped to user.isAdmin)
 //    are allowed through to the wrapped admin UI.
 const AdminGuard = ({ children }) => {
     const { isAuthenticated, user, loading } = useAuth()

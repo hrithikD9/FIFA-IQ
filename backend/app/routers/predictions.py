@@ -62,10 +62,18 @@ def _validate_prediction(payload: dict[str, Any]) -> Prediction:
 
 
 @router.get("/", response_model=list[Prediction], status_code=status.HTTP_200_OK)
-async def get_all_predictions() -> list[Prediction]:
-    """Fetch all predictions stored in Supabase."""
+async def get_all_predictions(
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> list[Prediction]:
+    """Fetch only predictions owned by the authenticated user."""
     try:
-        response = supabase.table("predictions").select("*").order("match_id").execute()
+        response = (
+            supabase.table("predictions")
+            .select("*")
+            .eq("user_id", current_user["id"])
+            .order("match_id")
+            .execute()
+        )
         prediction_rows = cast(list[dict[str, Any]], response.data or [])
         return [_validate_prediction(row) for row in prediction_rows]
     except HTTPException:
@@ -203,7 +211,7 @@ async def generate_prediction(
 
         prediction_response = (
             supabase.table("predictions")
-            .upsert(payload, on_conflict="match_id")
+            .upsert(payload, on_conflict="user_id,match_id")
             .execute()
         )
 
@@ -379,7 +387,7 @@ async def save_prediction(
 
         prediction_response = (
             supabase.table("predictions")
-            .upsert(payload, on_conflict="match_id")
+            .upsert(payload, on_conflict="user_id,match_id")
             .execute()
         )
 

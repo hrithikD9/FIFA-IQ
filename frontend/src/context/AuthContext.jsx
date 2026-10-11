@@ -10,12 +10,10 @@ const mapAuthUser = (authUser) => {
     const userMetadata = authUser.user_metadata ?? {}
     const appMetadata = authUser.app_metadata ?? {}
 
-    // Resolve the admin flag across the places Supabase may store it. The
-    // canonical source per spec is `user_metadata.is_admin`, with fallbacks to
-    // `app_metadata.is_admin` and an explicit `role === 'admin'` claim.
+    // Admin status must come only from server-controlled app metadata. User
+    // metadata is writable by the account owner and cannot grant privileges.
     const isAdmin = Boolean(
-        (userMetadata.is_admin ?? appMetadata.is_admin) ||
-        userMetadata.role === 'admin' ||
+        appMetadata.is_admin ||
         appMetadata.role === 'admin'
     )
 
