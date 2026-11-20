@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -159,3 +160,64 @@ async def get_admin_telemetry(admin: dict[str, Any] = Depends(verify_admin_user)
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Database error: {str(exc)}",
         ) from exc
+
+
+class ProviderUsage(BaseModel):
+    provider: str
+    requests_24h: int
+    errors_24h: int
+    rate_limited_24h: int
+    avg_latency_ms: int | None
+    last_request_at: str | None
+    last_error: str | None
+
+
+class ApiUsage(BaseModel):
+    window_hours: int
+    providers: list[ProviderUsage]
+    recent_errors: list[dict[str, Any]]
+
+
+@router.get("/api-usage", response_model=ApiUsage, status_code=status.HTTP_200_OK)
+async def get_api_usage(admin: dict[str, Any] = Depends(verify_admin_user)) -> ApiUsage:
+    """External football API health for the last 24 hours (admin only)."""
+    since = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    try:
+        resp = (
+            supabase.table("api_request_logs")
+            .select("provider, endpoint, status_code, ok, latency_ms, error, created_at")
+            .gte("created_at", since)
+            .order("created_at", desc=True)
+            .limit(5000)
+            .execute()
+        )
+    except Exception as exc:
+        logger.error(f"Admin Router Error (api usage): {exc}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="API usage log is unavailable. Run backend/supabase_football_api.sql in Supabase.",
+        ) from exc
+
+    rows = cast(list[dict[str, Any]], resp.data or [])
+    by_provider: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        by_provider.setdefault(row["provider"], []).append(row)
+
+    providers = []
+    for name, items in sorted(by_provider.items()):
+        latencies = [r["latency_ms"] for r in items if r.get("latency_ms") is not None and r.get("status_code") != 429]
+        errors = [r for r in items if not r.get("ok")]
+        providers.append(
+            ProviderUsage(
+                provider=name,
+                requests_24h=len(items),
+                errors_24h=len(errors),
+                rate_limited_24h=sum(1 for r in items if r.get("status_code") == 429),
+                avg_latency_ms=int(sum(latencies) / len(latencies)) if latencies else None,
+                last_request_at=items[0]["created_at"],
+                last_error=errors[0]["created_at"] if errors else None,
+            )
+        )
+
+    recent_errors = [r for r in rows if not r.get("ok")][:20]
+    return ApiUsage(window_hours=24, providers=providers, recent_errors=recent_errors)

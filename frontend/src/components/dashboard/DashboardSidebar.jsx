@@ -1,15 +1,25 @@
 import React from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 
-const navItems = ['Dashboard', 'Team Analysis', 'Player Analytics', 'Match Prediction', 'Comparison', 'History']
+const navItems = ['Dashboard', 'Fixtures', 'Team Analysis', 'Player Analytics', 'Match Prediction', 'Comparison', 'History']
+
+const ROUTES = {
+    Dashboard: '/dashboard',
+    Fixtures: '/fixtures',
+    'Team Analysis': '/teams',
+    'Player Analytics': '/players',
+    'Match Prediction': '/predictions',
+    History: '/history',
+}
 
 const DashboardSidebar = () => {
+    const { pathname } = useLocation()
     return (
         <aside className="flex min-h-screen w-72 flex-col border-r border-white/5 bg-[#121722] px-5 py-6">
             <nav className="space-y-2">
                 {navItems.map((item) => {
-                    const isActive = item === 'Dashboard'
-                    const to = item === 'Match Prediction' ? '/predictions' : item === 'History' ? '/history' : '#'
+                    const to = ROUTES[item] ?? '#'
+                    const isActive = to !== '#' && pathname === to
 
                     return (
                         <Link

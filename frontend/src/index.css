@@ -1,5 +1,29 @@
 @import "tailwindcss";
 
+/* FIFA-IQ redesign tokens (frontend/designs/FIFA-IQ Redesign — Design Spec.md) */
+@theme {
+    --color-fi-bg: #0B0D14;
+    --color-fi-surface: #131622;
+    --color-fi-inset: #0F121C;
+    --color-fi-border: #232838;
+    --color-fi-text: #E8EAF2;
+    --color-fi-muted: #9AA1B5;
+    --color-fi-accent: #A9B4FF;
+    --color-fi-link: #AEB8FF;
+    --color-fi-accent-light: #C3CBFF;
+    --color-fi-nav: #1A1F33;
+    --color-fi-win: #86EFAC;
+    --color-fi-draw: #FCD34D;
+    --color-fi-loss: #FCA5A5;
+    --color-fi-live: #FF9A9A;
+    --color-fi-momentum: #FDBA74;
+    --color-fi-opp: #D9C2FF;
+    --color-fi-opp-dark: #6E5A9E;
+
+    --font-display: "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
+    --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
 body {
     @apply bg-[#171B26] text-white;
 }
@@ -14,4 +38,12 @@ body {
         opacity: 1;
         transform: translateY(0);
     }
+}
+
+/* Horizontally scrolling strips (mobile nav, date strip, tabs) without a visible bar. */
+.no-scrollbar {
+    scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
 }

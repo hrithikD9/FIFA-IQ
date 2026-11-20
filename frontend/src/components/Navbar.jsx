@@ -54,6 +54,13 @@ const Navbar = () => {
                             </NavLink>
                         </li>
                     )}
+                    {isAuthenticated && (
+                        <li>
+                            <NavLink to='/fixtures' className="text-[#94A3BB] hover:text-[#ADC6FF] transition-colors">
+                                Fixtures
+                            </NavLink>
+                        </li>
+                    )}
                     <li>
                         <NavLink to='/history' className="text-[#94A3BB] hover:text-[#ADC6FF] transition-colors">
                             History
