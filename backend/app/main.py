@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 import os
 from contextlib import asynccontextmanager
 
@@ -5,7 +7,9 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import admin, predictions, teams
+from app.routers import admin, football, predictions, teams
+from app.services.football import close_football_service, get_football_service
+from app.services.warmup import warmup_enabled, warmup_loop
 
 load_dotenv()
 
@@ -41,7 +45,14 @@ async def lifespan(app: FastAPI):
                 )
     print("=========================")
     print("="*50 + "\n")
+
+    warmup_task = asyncio.create_task(warmup_loop(get_football_service())) if warmup_enabled() else None
     yield
+    if warmup_task is not None:
+        warmup_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await warmup_task
+    await close_football_service()
 
 
 app = FastAPI(title="FIFA-IQ API", version="1.0.0", lifespan=lifespan)
@@ -57,6 +68,7 @@ app.add_middleware(
 app.include_router(teams.router, prefix="/api/v1/teams", tags=["Teams"])
 app.include_router(predictions.router, prefix="/api/v1/predictions", tags=["Predictions"])
 app.include_router(admin.router, prefix="/api/v1/admin", tags=["Admin"])
+app.include_router(football.router, prefix="/api/v1/football", tags=["Football Data"])
 
 
 @app.get("/")

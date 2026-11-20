@@ -15,6 +15,9 @@ import PersonalSettings from './pages/PersonalSettings'
 import AdminGuard from './components/AdminGuard'
 import UserGuard from './components/UserGuard'
 import ProtectedRoute from './components/ProtectedRoute'
+import AppShell from './components/shell/AppShell'
+import Fixtures from './pages/Fixtures'
+import ComingSoon from './pages/ComingSoon'
 
 const SIGNUP_STEP_ONE_STORAGE_KEY = 'fifa-iq.signup.stepOne'
 
@@ -65,6 +68,18 @@ function App() {
         <Route path='/predictions' element={<MatchOutcomePrediction />}/>
         <Route path='/history' element={<LegacyTimelinePage />}/>
         <Route path='/profile' element={<PersonalSettings />}/>
+
+        {/* Football data pages share the redesigned shell (sidebar + top bar). */}
+        <Route element={<AppShell />}>
+          <Route path='/fixtures' element={<Fixtures />}/>
+          <Route path='/live' element={<ComingSoon title='Live Scores' />}/>
+          <Route path='/results' element={<ComingSoon title='Results / Scorecards' />}/>
+          <Route path='/results/:matchId' element={<ComingSoon title='Scorecard' />}/>
+          <Route path='/teams' element={<ComingSoon title='Teams' />}/>
+          <Route path='/teams/:teamId' element={<ComingSoon title='Team details' />}/>
+          <Route path='/players' element={<ComingSoon title='Players' />}/>
+          <Route path='/players/:playerId' element={<ComingSoon title='Player details' />}/>
+        </Route>
       </Route>
 
       {/* Admin routes: locked to admins. Non-admin users are bounced to /dashboard. */}
