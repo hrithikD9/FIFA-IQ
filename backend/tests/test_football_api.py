@@ -67,9 +67,11 @@ FD_RESPONSES = {
     "matches/564732/head2head": {
         "aggregates": {"homeTeam": {"wins": 0}},  # free tier returns zeros
         "matches": [
-            fd_match(10, BARCA, ALAVES, score=(3, 0)),
-            fd_match(11, ALAVES, BARCA, score=(1, 1)),
-            fd_match(12, ALAVES, BARCA, score=(2, 1)),
+            fd_match(10, BARCA, ALAVES, score=(3, 0), date="2025-01-10T20:00:00Z"),
+            fd_match(11, ALAVES, BARCA, score=(1, 1), date="2025-09-10T20:00:00Z"),
+            fd_match(12, ALAVES, BARCA, score=(2, 1), date="2024-03-10T20:00:00Z"),
+            fd_match(564732, BARCA, ALAVES, score=(6, 1)),  # the match itself
+            fd_match(13, ALAVES, BARCA, "TIMED", date="2027-04-01T20:00:00Z"),  # a later meeting
         ],
     },
     "teams/81": {
@@ -189,6 +191,7 @@ def test_match_detail_computes_head_to_head(client):
     assert body["head_to_head"]["summary"] == {
         "matches": 3, "home_team_wins": 1, "away_team_wins": 1, "draws": 1, "total_goals": 8,
     }
+    assert [m["id"] for m in body["head_to_head"]["matches"]] == [11, 10, 12]  # earlier only, newest first
     assert "lineups" in body["meta"]["unavailable"]
 
 

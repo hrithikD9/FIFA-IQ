@@ -170,3 +170,25 @@ export const StaleNotice = ({ meta }) =>
             Showing saved data from {new Date(meta.fetched_at).toLocaleString()} — the data provider is temporarily unavailable.
         </p>
     ) : null
+
+const FORM_TONES = {
+    W: 'bg-fi-win/15 text-fi-win',
+    D: 'bg-fi-draw/15 text-fi-draw',
+    L: 'bg-fi-loss/15 text-fi-loss',
+}
+const FORM_NAMES = { W: 'Win', D: 'Draw', L: 'Loss' }
+
+/** W/D/L squares, most recent first. */
+export const FormChips = ({ form, className = '' }) => (
+    <ol className={`flex gap-1.5 ${className}`} aria-label={`Recent form: ${form.map((r) => FORM_NAMES[r]).join(', ')}`}>
+        {form.map((result, i) => (
+            <li
+                key={i}
+                aria-hidden="true"
+                className={`grid size-7 place-items-center rounded-md text-xs font-bold ${FORM_TONES[result] ?? ''}`}
+            >
+                {result}
+            </li>
+        ))}
+    </ol>
+)

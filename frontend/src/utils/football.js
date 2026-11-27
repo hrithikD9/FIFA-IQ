@@ -36,8 +36,16 @@ export const formatDayShort = (date) =>
 export const formatKickoff = (utc) =>
     new Date(utc).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 
-export const formatMatchDate = (utc) =>
-    new Date(utc).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
+export const formatMatchDate = (utc) => {
+    const date = new Date(utc)
+    const sameYear = date.getFullYear() === new Date().getFullYear()
+    return date.toLocaleDateString(undefined, {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        ...(sameYear ? {} : { year: 'numeric' }),
+    })
+}
 
 export const formatLongDate = (utc) =>
     new Date(utc).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })
@@ -103,3 +111,12 @@ export const prettyStage = (stage) =>
               .map((w) => w[0].toUpperCase() + w.slice(1))
               .join(' ')
         : null
+
+/** 'W' | 'D' | 'L' for `teamId` in a finished normalized match, else null. */
+export const resultFor = (match, teamId) => {
+    const winner = match?.status === 'finished' ? match.score.winner : null
+    if (!winner) return null
+    if (winner === 'draw') return 'D'
+    const isHome = match.home_team?.id === teamId
+    return (winner === 'home') === isHome ? 'W' : 'L'
+}
