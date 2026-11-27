@@ -429,7 +429,14 @@ class FootballService:
         h2h = None
         try:
             h2h_res = await self._fd(f"matches/{match_id}/head2head", ttl_seconds(hours=12), {"limit": 10})
-            h2h_matches = [normalize_match(m) for m in h2h_res.payload.get("matches") or []]
+            # The provider's list includes this match (and can include later
+            # ones); only earlier meetings count as head-to-head history.
+            h2h_matches = [
+                normalize_match(m)
+                for m in h2h_res.payload.get("matches") or []
+                if m.get("id") != match_id and (m.get("utcDate") or "") < (match["utc_date"] or "")
+            ]
+            h2h_matches.sort(key=lambda m: m["utc_date"] or "", reverse=True)
             home_id = (match["home_team"] or {}).get("id")
             away_id = (match["away_team"] or {}).get("id")
             if home_id and away_id:

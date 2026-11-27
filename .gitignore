@@ -40,3 +40,10 @@ lerna-debug.log*
 # Editors
 .vscode/
 .idea/
+
+# Local-only project files (kept out of the repo)
+PROJECT_AUDIT_AND_PROGRESS_REPORT.md
+frontend/designs/
+
+# Temporary visual preview harness
+frontend/preview-tmp/
