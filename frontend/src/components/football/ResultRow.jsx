@@ -10,7 +10,7 @@ const RESULT_TONES = { W: 'text-fi-win', D: 'text-fi-draw', L: 'text-fi-loss' }
  * Compact one-line match row linking to its scorecard. With `perspectiveTeamId`
  * a W/D/L marker is shown for that team.
  */
-const ResultRow = ({ match, perspectiveTeamId, showCompetition = true, showDate = true }) => {
+const ResultRow = ({ match, perspectiveTeamId, showCompetition = true, showDate = true, compact = false }) => {
     const { home_team: home, away_team: away, score, status } = match
     const finished = status === 'finished'
     const winner = finished ? score.winner : null
@@ -38,24 +38,24 @@ const ResultRow = ({ match, perspectiveTeamId, showCompetition = true, showDate 
             <div className="grid min-w-0 flex-1 grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-3">
                 <span className="flex min-w-0 items-center justify-end gap-2">
                     <span className={`truncate text-sm font-semibold ${winner && winner !== 'home' ? 'text-fi-muted' : 'text-white'}`}>
-                        <span className="sm:hidden">{teamCode(home)}</span>
-                        <span className="max-sm:hidden">{home?.short_name}</span>
+                        <span className={compact ? '' : 'sm:hidden'}>{teamCode(home)}</span>
+                        {!compact && <span className="max-sm:hidden">{home?.short_name}</span>}
                     </span>
-                    <CrestBadge team={home} size="sm" className="max-sm:hidden" />
+                    <CrestBadge team={home} size="sm" className={compact ? 'hidden' : 'max-sm:hidden'} />
                 </span>
                 <span className="min-w-14 text-center font-display text-base font-bold tabular-nums text-white">
                     {hasScore ? `${score.home} – ${score.away}` : 'vs'}
                 </span>
                 <span className="flex min-w-0 items-center gap-2">
-                    <CrestBadge team={away} size="sm" className="max-sm:hidden" />
+                    <CrestBadge team={away} size="sm" className={compact ? 'hidden' : 'max-sm:hidden'} />
                     <span className={`truncate text-sm font-semibold ${winner && winner !== 'away' ? 'text-fi-muted' : 'text-white'}`}>
-                        <span className="sm:hidden">{teamCode(away)}</span>
-                        <span className="max-sm:hidden">{away?.short_name}</span>
+                        <span className={compact ? '' : 'sm:hidden'}>{teamCode(away)}</span>
+                        {!compact && <span className="max-sm:hidden">{away?.short_name}</span>}
                     </span>
                 </span>
             </div>
 
-            <span className="hidden w-64 shrink-0 truncate text-right text-xs text-fi-muted md:block" title={meta}>
+            <span className={`hidden w-64 shrink-0 truncate text-right text-xs text-fi-muted ${compact ? '' : 'md:block'}`} title={meta}>
                 {meta}
             </span>
             <ChevronRight className="size-4 shrink-0 text-fi-muted group-hover:text-fi-accent" aria-hidden="true" />

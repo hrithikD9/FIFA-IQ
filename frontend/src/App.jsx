@@ -19,6 +19,9 @@ import AppShell from './components/shell/AppShell'
 import Fixtures from './pages/Fixtures'
 import Results from './pages/Results'
 import Scorecard from './pages/Scorecard'
+import TeamDetails, { TeamsIndex } from './pages/TeamDetails'
+import Players from './pages/Players'
+import PlayerDetails from './pages/PlayerDetails'
 import ComingSoon from './pages/ComingSoon'
 
 const SIGNUP_STEP_ONE_STORAGE_KEY = 'fifa-iq.signup.stepOne'
@@ -77,10 +80,10 @@ function App() {
           <Route path='/live' element={<ComingSoon title='Live Scores' />}/>
           <Route path='/results' element={<Results />}/>
           <Route path='/results/:matchId' element={<Scorecard />}/>
-          <Route path='/teams' element={<ComingSoon title='Teams' />}/>
-          <Route path='/teams/:teamId' element={<ComingSoon title='Team details' />}/>
-          <Route path='/players' element={<ComingSoon title='Players' />}/>
-          <Route path='/players/:playerId' element={<ComingSoon title='Player details' />}/>
+          <Route path='/teams' element={<TeamsIndex />}/>
+          <Route path='/teams/:teamId' element={<TeamDetails />}/>
+          <Route path='/players' element={<Players />}/>
+          <Route path='/players/:playerId' element={<PlayerDetails />}/>
         </Route>
       </Route>
 
