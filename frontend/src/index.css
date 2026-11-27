@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+:root {
+    color-scheme: dark;
+}
+
 /* FIFA-IQ redesign tokens (frontend/designs/FIFA-IQ Redesign — Design Spec.md) */
 @theme {
     --color-fi-bg: #0B0D14;

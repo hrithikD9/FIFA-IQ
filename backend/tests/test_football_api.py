@@ -115,9 +115,14 @@ TSDB_RESPONSES = {
     "searchplayers.php": {
         "player": [
             {"strPlayer": "Raphinha", "strSport": "Rugby", "strTeam": "Some Rugby Club", "strCutout": "https://rugby.png"},
-            {"strPlayer": "Raphinha", "strSport": "Soccer", "strTeam": "Barcelona", "strNationality": "Brazil", "strCutout": "https://photo.png", "strHeight": "176 cm"},
+            {"idPlayer": "34163304", "strPlayer": "Raphinha", "strSport": "Soccer", "strTeam": "Barcelona", "strNationality": "Brazil", "strCutout": "https://photo.png"},
         ]
-    }
+    },
+    "lookupplayer.php": {
+        "players": [
+            {"idPlayer": "34163304", "strPlayer": "Raphinha", "strHeight": "1.76 m (5 ft 9 1⁄2 in)", "strSide": "Left", "strBirthLocation": "Porto Alegre, Brazil"}
+        ]
+    },
 }
 
 
@@ -231,6 +236,9 @@ def test_player_detail_enriched_with_soccer_profile_and_stats(client):
     body = client.get("/api/v1/football/players/37428").json()
     player = body["player"]
     assert player["profile"]["photo_url"] == "https://photo.png"  # not the rugby player
+    # detail lookup fills fields the search summary lacks
+    assert player["profile"]["height"] == "1.76 m (5 ft 9 1⁄2 in)"
+    assert player["profile"]["preferred_foot"] == "Left"
     assert player["position_group"] == "ATT"
     assert player["contract"] == {"start": "2022-07", "until": "2028-06"}
     assert body["season_stats"][0]["goals"] == 15
@@ -243,6 +251,14 @@ def test_player_detail_survives_enrichment_failure(client, fakes):
     body = client.get("/api/v1/football/players/37428").json()
     assert body["player"]["profile"] is None
     assert body["player"]["name"] == "Raphinha"
+
+
+def test_player_profile_falls_back_to_search_summary(client, fakes):
+    _, tsdb = fakes
+    tsdb.responses["lookupplayer.php"] = ProviderRateLimited()
+    profile = client.get("/api/v1/football/players/37428").json()["player"]["profile"]
+    assert profile["photo_url"] == "https://photo.png"
+    assert profile["height"] is None
 
 
 def test_provider_errors_map_to_generic_messages(client, fakes):

@@ -488,7 +488,21 @@ class FootballService:
             logger.info("TheSportsDB lookup failed for %s: %s", name, type(exc).__name__)
             return None
         candidates = (res.payload or {}).get("player") or []
-        return normalize_tsdb_player(_pick_tsdb_player(candidates, name, team_name, nationality))
+        picked = _pick_tsdb_player(candidates, name, team_name, nationality)
+        if not picked:
+            return None
+
+        # Search results are summaries; the by-id lookup adds height, weight,
+        # preferred foot, birthplace and biography. Fall back to the summary.
+        detail = None
+        if picked.get("idPlayer"):
+            try:
+                res = await self._tsdb("lookupplayer.php", {"id": picked["idPlayer"]})
+                found = (res.payload or {}).get("players") or (res.payload or {}).get("player") or []
+                detail = found[0] if found else None
+            except ProviderError as exc:
+                logger.info("TheSportsDB detail lookup failed for %s: %s", name, type(exc).__name__)
+        return normalize_tsdb_player({**picked, **(detail or {})})
 
     async def _player_season_stats(self, player_id: int, competitions: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Goals/assists from each competition's scorers list (the only per-player stats on the free tier)."""

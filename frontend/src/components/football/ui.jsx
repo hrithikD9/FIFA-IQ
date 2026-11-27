@@ -68,11 +68,15 @@ export const CrestBadge = ({ team, size = 'md', className = '' }) => {
 /** Player photo, falling back to initials. */
 export const PlayerAvatar = ({ name, photoUrl, size = 'md', className = '' }) => {
     const [failed, setFailed] = useState(false)
-    const sizes = { sm: 'size-10 text-sm', md: 'size-12 text-base', lg: 'size-36 text-4xl' }
-    const box = `${sizes[size] ?? sizes.md} shrink-0 overflow-hidden rounded-full border border-fi-border bg-[#16203A]`
+    const sizes = {
+        sm: 'size-10 rounded-full text-sm',
+        md: 'size-12 rounded-full text-base',
+        lg: 'size-40 rounded-2xl text-4xl',
+    }
+    const box = `${sizes[size] ?? sizes.md} shrink-0 overflow-hidden border border-fi-border bg-[#16203A]`
     if (photoUrl && !failed) {
         return (
-            <span className={`${box} ${className}`}>
+            <span className={`${box} block ${className}`}>
                 <img src={photoUrl} alt="" loading="lazy" onError={() => setFailed(true)} className="size-full object-cover object-top" />
             </span>
         )
