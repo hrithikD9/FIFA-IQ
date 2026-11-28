@@ -173,14 +173,6 @@ on conflict (id) do update set
 
 select setval(pg_get_serial_sequence('public.matches', 'id'), greatest((select coalesce(max(id), 1) from public.matches), 1), true);
 
-insert into public.predictions (id, match_id, win_prob_home, win_prob_away, draw_prob, underdog_insight) values
-    (1, 2, 0.42, 0.34, 0.24, 'France profile as an efficient underdog: lower possession, but xG output remains close to Argentina, making transition chances a key upset path.')
-on conflict (id) do update set
-    match_id = excluded.match_id,
-    win_prob_home = excluded.win_prob_home,
-    win_prob_away = excluded.win_prob_away,
-    draw_prob = excluded.draw_prob,
-    underdog_insight = excluded.underdog_insight,
-    updated_at = now();
-
-select setval(pg_get_serial_sequence('public.predictions', 'id'), greatest((select coalesce(max(id), 1) from public.predictions), 1), true);
+-- No seed prediction: every prediction must belong to a user (user_id), so a
+-- seeded row would be invisible to everyone. Remove one left by older versions:
+delete from public.predictions where user_id is null;

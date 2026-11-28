@@ -8,6 +8,7 @@ import {
     formatKickoff,
     formatMatchDate,
     ordinal,
+    predictionState,
     prettyStage,
 } from '../../utils/football'
 
@@ -102,7 +103,7 @@ const MatchCard = ({ match, standings, featuredTeamId }) => {
                 {canPredict && (
                     <Link
                         to="/predict"
-                        state={{ home: home?.name, away: away?.name }}
+                        state={predictionState(match)}
                         className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-fi-accent px-3.5 text-sm font-semibold text-[#11152A] hover:bg-fi-accent-light"
                     >
                         <Sparkles className="size-4" aria-hidden="true" /> Predict with AI

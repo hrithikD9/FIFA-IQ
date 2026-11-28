@@ -29,7 +29,7 @@ async def get_all_teams() -> list[Team]:
         logger.error(f"Teams Router Error: {exc}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(exc)}",
+            detail="Something went wrong on the server. Please try again.",
         ) from exc
 
 
@@ -53,6 +53,6 @@ async def get_team_by_id(team_id: int) -> Team:
         logger.error(f"Teams Router Error: {exc}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(exc)}",
+            detail="Something went wrong on the server. Please try again.",
         ) from exc
         

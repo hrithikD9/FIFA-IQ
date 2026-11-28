@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, cast
 
@@ -16,20 +17,19 @@ from app.models.prediction import (
 )
 from app.models.team import Team
 from app.services.analytics import calculate_match_probabilities, underdog_insight_generator
+from app.services.football import get_football_service
+from app.services.grading import grade, summarize
+from app.services.predictor import BASELINE_TEAM_METRICS, UnsupportedTeamError, get_predictor
+from app.services.providers import ProviderError
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# Curated analytics fallback for international teams. Used to source xG/possession
-# metrics when the Supabase row is missing or was created with zero/placeholder
-# values, so predictions stay meaningful for the frontend's team catalog.
+# Team rows created on save carry the baseline model's ratings, so the legacy
+# /generate endpoint (which reads teams.xg_avg) stays consistent with /compute.
 INTERNATIONAL_TEAM_METRICS: dict[str, dict[str, Any]] = {
-    "argentina": {"league": "International", "xg_avg": 2.05, "possession_avg": 60.2},
-    "france": {"league": "International", "xg_avg": 1.98, "possession_avg": 55.6},
-    "brazil": {"league": "International", "xg_avg": 1.92, "possession_avg": 58.1},
-    "spain": {"league": "International", "xg_avg": 1.90, "possession_avg": 66.4},
-    "england": {"league": "International", "xg_avg": 1.85, "possession_avg": 57.3},
-    "germany": {"league": "International", "xg_avg": 1.96, "possession_avg": 59.8},
+    key: {"league": "International", "xg_avg": m["xg_avg"], "possession_avg": m["possession_avg"]}
+    for key, m in BASELINE_TEAM_METRICS.items()
 }
 
 
@@ -82,7 +82,7 @@ async def get_all_predictions(
         logger.error(f"Predictions Router Error: {exc}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(exc)}",
+            detail="Something went wrong on the server. Please try again.",
         ) from exc
 
 
@@ -142,6 +142,10 @@ async def get_prediction_history(
                 }
             )
 
+        # Predictions linked to a real fixture are graded once it has finished.
+        for item, result in zip(history, await _grade_rows(history)):
+            item["grade"] = result
+
         logger.info(f"Returned {len(history)} prediction history records for user_id: {user_id}")
         return history
     except HTTPException:
@@ -150,7 +154,7 @@ async def get_prediction_history(
         logger.error(f"Predictions Router Error: {exc}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(exc)}",
+            detail="Something went wrong on the server. Please try again.",
         ) from exc
 
 
@@ -224,7 +228,7 @@ async def generate_prediction(
         logger.error(f"Predictions Router Error: {exc}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(exc)}",
+            detail="Something went wrong on the server. Please try again.",
         ) from exc
 
 
@@ -303,53 +307,60 @@ def _fetch_or_create_match(home_team_id: int, away_team_id: int) -> Match:
     return _validate_match(created_rows[0])
 
 
+def _unsupported(exc: UnsupportedTeamError) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        detail=f"Not supported by the current model yet: {', '.join(exc.teams)}.",
+    )
+
+
+def _same_team(home: str, away: str) -> None:
+    if home.strip().lower() == away.strip().lower():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Home and away teams must be different.",
+        )
+
+
+@router.get("/model", status_code=status.HTTP_200_OK)
+async def get_model_info(current_user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    """The active model, the teams it can predict, and each team's code and flag."""
+    predictor = get_predictor()
+    teams = predictor.supported_teams()
+    try:
+        directory = await get_football_service().national_teams()
+    except ProviderError:
+        directory = {}
+    team_info = {
+        name: {"tla": d.get("tla"), "crest": d.get("crest")}
+        for name in teams
+        if (d := directory.get(name.lower()))
+    }
+    return {"model": predictor.info.__dict__, "teams": teams, "team_info": team_info}
+
+
 @router.post("/compute", response_model=PredictionComputeResponse, status_code=status.HTTP_200_OK)
 async def compute_prediction(
     request: PredictionComputeRequest,
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> PredictionComputeResponse:
-    """Compute outcome probabilities for two teams by name WITHOUT persisting anything.
-
-    Teams are looked up (or created) purely to source analytics metrics; no match or
-    prediction row is written. Persistence happens only via the `/save` endpoint.
-    """
+    """Compute outcome probabilities for two teams. Writes nothing to the database."""
+    _same_team(request.home_team, request.away_team)
     try:
-        home_name = request.home_team.strip()
-        away_name = request.away_team.strip()
+        result = get_predictor().predict(request.home_team, request.away_team, neutral=request.neutral)
+    except UnsupportedTeamError as exc:
+        raise _unsupported(exc) from exc
 
-        if home_name.lower() == away_name.lower():
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Home and away teams must be different.",
-            )
-
-        home_team = _fetch_or_create_team(home_name)
-        away_team = _fetch_or_create_team(away_name)
-
-        probabilities = calculate_match_probabilities(home_team, away_team)
-        insight = underdog_insight_generator(
-            home_team,
-            away_team,
-            probabilities["home_win"],
-            probabilities["away_win"],
-        )
-
-        return PredictionComputeResponse(
-            home_team=home_team.name,
-            away_team=away_team.name,
-            win_prob_home=probabilities["home_win"],
-            win_prob_away=probabilities["away_win"],
-            draw_prob=probabilities["draw"],
-            underdog_insight=insight,
-        )
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.error(f"Predictions Router Error: {exc}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(exc)}",
-        ) from exc
+    return PredictionComputeResponse(
+        home_team=result["home_team"],
+        away_team=result["away_team"],
+        win_prob_home=result["home_win"],
+        win_prob_away=result["away_win"],
+        draw_prob=result["draw"],
+        underdog_insight=result["insight"],
+        neutral=result["neutral"],
+        model=result["model"],
+    )
 
 
 @router.post("/save", response_model=Prediction, status_code=status.HTTP_201_CREATED)
@@ -357,33 +368,34 @@ async def save_prediction(
     request: PredictionSaveRequest,
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> Prediction:
-    """Persist a previously computed prediction for the authenticated user.
+    """Recompute with the current model and persist for the authenticated user.
 
-    The match_id is auto-generated: the scheduled match for the home/away pairing is
-    looked up or created under the hood, so the client never supplies a manual match id.
+    The match row is looked up or created for the pairing. When
+    `external_match_id` is given, the prediction is linked to that real fixture
+    and graded automatically once it finishes.
     """
+    _same_team(request.home_team, request.away_team)
     try:
-        home_name = request.home_team.strip()
-        away_name = request.away_team.strip()
+        result = get_predictor().predict(request.home_team, request.away_team, neutral=request.neutral)
+    except UnsupportedTeamError as exc:
+        raise _unsupported(exc) from exc
 
-        if home_name.lower() == away_name.lower():
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Home and away teams must be different.",
-            )
-
-        home_team = _fetch_or_create_team(home_name)
-        away_team = _fetch_or_create_team(away_name)
+    try:
+        home_team = _fetch_or_create_team(result["home_team"])
+        away_team = _fetch_or_create_team(result["away_team"])
         match = _fetch_or_create_match(home_team.id, away_team.id)
 
-        payload = {
+        payload: dict[str, Any] = {
             "match_id": match.id,
             "user_id": current_user["id"],
-            "win_prob_home": request.win_prob_home,
-            "win_prob_away": request.win_prob_away,
-            "draw_prob": request.draw_prob,
-            "underdog_insight": request.underdog_insight,
+            "win_prob_home": result["home_win"],
+            "win_prob_away": result["away_win"],
+            "draw_prob": result["draw"],
+            "underdog_insight": result["insight"],
+            "model_version": result["model"]["version"],
         }
+        if request.external_match_id is not None:
+            payload["external_match_id"] = request.external_match_id
 
         prediction_response = (
             supabase.table("predictions")
@@ -400,5 +412,65 @@ async def save_prediction(
         logger.error(f"Predictions Router Error: {exc}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(exc)}",
+            detail="Something went wrong on the server. Please try again.",
         ) from exc
+
+
+async def _grade_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any] | None]:
+    """Grade rows linked to a real fixture; None for rows without a link."""
+    svc = get_football_service()
+
+    async def one(row: dict[str, Any]) -> dict[str, Any] | None:
+        ext = row.get("external_match_id")
+        if not ext:
+            return None
+        try:
+            match = await svc.match(int(ext))
+        except ProviderError:
+            return {"status": "unknown"}
+        return grade(row["win_prob_home"], row["draw_prob"], row["win_prob_away"], match)
+
+    return await asyncio.gather(*(one(r) for r in rows))
+
+
+# Competition used for the model check: the most recent tournament on the free data plan.
+MODEL_CHECK_COMPETITION = "WC"
+
+
+@router.get("/model-check", status_code=status.HTTP_200_OK)
+async def model_check(current_user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+    """Run the current model over every finished match of the latest World Cup it can
+    predict, and grade each prediction against the real result.
+
+    Tournament matches are played at neutral venues. Only the teams playing are
+    used as input; results are never shown to the model.
+    """
+    predictor = get_predictor()
+    try:
+        matches = await get_football_service().competition_matches(MODEL_CHECK_COMPETITION)
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.public_message) from exc
+
+    finished = [m for m in matches if m["status"] == "finished" and m["home_team"] and m["away_team"]]
+    evaluated = []
+    for m in finished:
+        home, away = m["home_team"]["name"], m["away_team"]["name"]
+        if not (predictor.supports(home) and predictor.supports(away)):
+            continue
+        p = predictor.predict(home, away, neutral=True)
+        evaluated.append(
+            {
+                "match": m,
+                "prediction": {"home": p["home_win"], "draw": p["draw"], "away": p["away_win"]},
+                "grade": grade(p["home_win"], p["draw"], p["away_win"], m),
+            }
+        )
+
+    competition = finished[0]["competition"] if finished else None
+    return {
+        "model": predictor.info.__dict__,
+        "competition": competition,
+        "coverage": {"evaluated": len(evaluated), "finished": len(finished)},
+        "summary": summarize([e["grade"] for e in evaluated]),
+        "matches": evaluated,
+    }

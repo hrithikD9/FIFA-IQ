@@ -120,3 +120,36 @@ export const resultFor = (match, teamId) => {
     const isHome = match.home_team?.id === teamId
     return (winner === 'home') === isHome ? 'W' : 'L'
 }
+
+/** "just now", "5 min ago", "3 h ago", "2 days ago", else a date. */
+export const timeAgo = (iso, now = new Date()) => {
+    if (!iso) return '—'
+    const then = new Date(iso)
+    const mins = Math.round((now - then) / 60_000)
+    if (Number.isNaN(mins)) return '—'
+    if (mins < 1) return 'just now'
+    if (mins < 60) return `${mins} min ago`
+    const hours = Math.round(mins / 60)
+    if (hours < 24) return `${hours} h ago`
+    const days = Math.round(hours / 24)
+    if (days < 14) return `${days} day${days === 1 ? '' : 's'} ago`
+    return then.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+/** 0.4234 -> "42%" */
+export const pct0 = (p) => `${Math.round((Number(p) || 0) * 100)}%`
+
+/**
+ * Router state for "Predict with AI" links. International tournament matches
+ * are treated as neutral-venue by default (the user can untick it).
+ */
+export const predictionState = (match) => ({
+    home: match.home_team?.name,
+    away: match.away_team?.name,
+    externalMatchId: match.id,
+    neutral: Boolean(match.is_international),
+    competition: match.competition?.name,
+    utcDate: match.utc_date,
+    homeCrest: match.home_team?.crest ?? null,
+    awayCrest: match.away_team?.crest ?? null,
+})

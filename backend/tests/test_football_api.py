@@ -187,6 +187,14 @@ def test_live_is_marked_delayed(client):
     assert body["meta"]["delayed"] is True
 
 
+def test_live_minute_passed_through_when_provided(client, fakes):
+    fd, _ = fakes
+    live = fd_match(5, BARCA, ALAVES, "IN_PLAY")
+    fd.responses["matches"] = {"matches": [{**live, "minute": 67, "injuryTime": None}, fd_match(6, ALAVES, BARCA, "PAUSED")]}
+    matches = client.get("/api/v1/football/matches/live").json()["matches"]
+    assert [(m["status"], m["minute"]) for m in matches] == [("live", 67), ("halftime", None)]
+
+
 def test_match_detail_computes_head_to_head(client):
     body = client.get("/api/v1/football/matches/564732").json()
     assert body["match"]["score"] == {

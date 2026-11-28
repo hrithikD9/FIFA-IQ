@@ -63,7 +63,7 @@ const Navbar = () => {
                     )}
                     <li>
                         <NavLink to='/history' className="text-[#94A3BB] hover:text-[#ADC6FF] transition-colors">
-                            History
+                            Football history
                         </NavLink>
                     </li>
                 </ul>

@@ -3,7 +3,12 @@
   "private": true,
   "scripts": {
     "prepare": "husky",
-    "lint:staged": "lint-staged"
+    "lint:staged": "lint-staged",
+    "lint": "npm --prefix frontend run lint",
+    "build": "npm --prefix frontend run build",
+    "test:frontend": "npm --prefix frontend test",
+    "test:backend": "cd backend && python -m pytest -q",
+    "test": "npm run test:frontend && npm run test:backend"
   },
   "devDependencies": {
     "husky": "^9.1.7",
