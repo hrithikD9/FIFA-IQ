@@ -20,7 +20,7 @@ def _team_strength(team: Team) -> float:
     return max(xg_component + possession_component, 0.01)
 
 
-def calculate_match_probabilities(home_team: Team, away_team: Team) -> dict[str, float]:
+def calculate_match_probabilities(home_team: Team, away_team: Team, home_advantage: float = 1.08) -> dict[str, float]:
     """Calculate normalized match outcome probabilities for two teams.
 
     The model compares expected goals and possession-based control to produce
@@ -31,11 +31,12 @@ def calculate_match_probabilities(home_team: Team, away_team: Team) -> dict[str,
     Args:
         home_team: The home side represented by the Team schema.
         away_team: The away side represented by the Team schema.
+        home_advantage: Multiplier on the home side's strength; 1.0 for a neutral venue.
 
     Returns:
         A dictionary with `home_win`, `draw`, and `away_win` probabilities.
     """
-    home_strength = _team_strength(home_team) * 1.08
+    home_strength = _team_strength(home_team) * home_advantage
     away_strength = _team_strength(away_team)
 
     strength_gap = abs(home_strength - away_strength)

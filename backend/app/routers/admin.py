@@ -42,8 +42,8 @@ def verify_admin_user(current_user: dict[str, Any] = Depends(get_current_user)) 
 # ---------------------------------------------------------------------------
 class TeamMetricsUpdate(BaseModel):
     """Payload of updatable team attributes. All fields are optional so a PATCH-like
-    PUT updates only what is provided. `model_config` allows arbitrary extra keys to
-    be forward-compatible with future metric columns.
+    PUT updates only what is provided. Only columns that exist in
+    supabase_schema.sql are accepted; unknown keys are rejected (extra="forbid").
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -53,8 +53,6 @@ class TeamMetricsUpdate(BaseModel):
     logo_url: str | None = None
     xg_avg: float | None = Field(default=None, ge=0)
     possession_avg: float | None = Field(default=None, ge=0, le=100)
-    defensive_rating: float | None = Field(default=None, ge=0)
-    press_resistance: float | None = Field(default=None, ge=0)
 
 
 class AdminTelemetry(BaseModel):
@@ -79,7 +77,7 @@ async def list_all_teams(admin: dict[str, Any] = Depends(verify_admin_user)) -> 
         logger.error(f"Admin Router Error (list teams): {exc}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(exc)}",
+            detail="Something went wrong on the server. Please try again.",
         ) from exc
 
 
@@ -89,7 +87,7 @@ async def update_team_metrics(
     payload: TeamMetricsUpdate,
     admin: dict[str, Any] = Depends(verify_admin_user),
 ) -> Team:
-    """Update team attributes (xg_avg, possession_avg, defensive_rating, ...).
+    """Update team attributes (name, league, logo_url, xg_avg, possession_avg).
 
     Only fields present in the request body are written; omitted fields are left
     unchanged. Returns 404 if the team does not exist.
@@ -98,7 +96,7 @@ async def update_team_metrics(
 
     if not updates:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="No fields provided to update.",
         )
 
@@ -124,7 +122,7 @@ async def update_team_metrics(
         logger.error(f"Admin Router Error (update team {team_id}): {exc}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(exc)}",
+            detail="Something went wrong on the server. Please try again.",
         ) from exc
 
 
@@ -160,7 +158,7 @@ async def get_admin_telemetry(admin: dict[str, Any] = Depends(verify_admin_user)
         logger.error(f"Admin Router Error (telemetry): {exc}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Database error: {str(exc)}",
+            detail="Something went wrong on the server. Please try again.",
         ) from exc
 
 

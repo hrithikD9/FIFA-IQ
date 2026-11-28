@@ -17,7 +17,7 @@ import {
 } from '../components/football/ui'
 import { useApi } from '../hooks/useApi'
 import { fetchLiveMatches, fetchMatches } from '../services/footballApi'
-import { STATUS_LABELS, addDays, formatKickoff, prettyStage, toIsoDate } from '../utils/football'
+import { STATUS_LABELS, addDays, formatKickoff, predictionState, prettyStage, toIsoDate } from '../utils/football'
 
 const REFRESH_MS = 60_000 // matches the backend's live-cache TTL
 const COMPETITION_ORDER = ['PD', 'CL', 'WC', 'EC', 'PL', 'BL1', 'SA', 'FL1']
@@ -110,7 +110,7 @@ const LiveCard = ({ match }) => {
                 {match.is_international && (
                     <Link
                         to="/predict"
-                        state={{ home: match.home_team?.name, away: match.away_team?.name }}
+                        state={predictionState(match)}
                         className="inline-flex items-center gap-1.5 text-sm font-semibold text-fi-link hover:text-fi-accent-light"
                     >
                         <Sparkles className="size-4" aria-hidden="true" /> AI forecast

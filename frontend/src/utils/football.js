@@ -138,3 +138,18 @@ export const timeAgo = (iso, now = new Date()) => {
 
 /** 0.4234 -> "42%" */
 export const pct0 = (p) => `${Math.round((Number(p) || 0) * 100)}%`
+
+/**
+ * Router state for "Predict with AI" links. International tournament matches
+ * are treated as neutral-venue by default (the user can untick it).
+ */
+export const predictionState = (match) => ({
+    home: match.home_team?.name,
+    away: match.away_team?.name,
+    externalMatchId: match.id,
+    neutral: Boolean(match.is_international),
+    competition: match.competition?.name,
+    utcDate: match.utc_date,
+    homeCrest: match.home_team?.crest ?? null,
+    awayCrest: match.away_team?.crest ?? null,
+})

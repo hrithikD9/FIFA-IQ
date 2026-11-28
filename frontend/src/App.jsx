@@ -2,7 +2,6 @@ import React from 'react'
 import './index.css'
 import { Navigate, Routes, Route } from 'react-router-dom'
 import Home from './pages/Home'
-import MatchOutcomePrediction from './pages/MatchOutcomePrediction'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
 import SignupStepTwo from './pages/SignupStepTwo'
@@ -23,6 +22,7 @@ import TeamDetails, { TeamsIndex } from './pages/TeamDetails'
 import Players from './pages/Players'
 import PlayerDetails from './pages/PlayerDetails'
 import LiveScores from './pages/LiveScores'
+import MatchPrediction from './pages/MatchPrediction'
 
 const SIGNUP_STEP_ONE_STORAGE_KEY = 'fifa-iq.signup.stepOne'
 
@@ -59,10 +59,7 @@ function App() {
 
       {/* Protected routes */}
       <Route element={<ProtectedRoute />}>
-        <Route path='/predict' element={<MatchOutcomePrediction />}/>
-        <Route path='/predictions' element={<MatchOutcomePrediction />}/>
         <Route path='/history' element={<LegacyTimelinePage />}/>
-        <Route path='/profile' element={<PersonalSettings />}/>
 
         {/* Football data pages share the redesigned shell (sidebar + top bar). */}
         <Route element={<AppShell />}>
@@ -70,6 +67,9 @@ function App() {
           <Route path='/dashboard' element={<UserGuard><UserDashboard /></UserGuard>}/>
           {/* Admin workspace: admins only (others are sent to /dashboard). */}
           <Route path='/admin' element={<AdminGuard><AdminDashboard /></AdminGuard>}/>
+          <Route path='/profile' element={<PersonalSettings />}/>
+          <Route path='/predict' element={<MatchPrediction />}/>
+          <Route path='/predictions' element={<Navigate to='/predict' replace />}/>
           <Route path='/fixtures' element={<Fixtures />}/>
           <Route path='/live' element={<LiveScores />}/>
           <Route path='/results' element={<Results />}/>

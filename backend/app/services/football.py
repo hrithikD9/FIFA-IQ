@@ -425,6 +425,41 @@ class FootballService:
             "meta": {**self._meta(res), "delayed": True, "note": "Free data tier: scores are delayed, not real-time."},
         }
 
+    async def match(self, match_id: int) -> dict[str, Any]:
+        """One normalized match, without head-to-head (used for grading)."""
+        res = await self._fd(f"matches/{match_id}", _match_detail_ttl)
+        return normalize_match(res.payload)
+
+    async def national_teams(self) -> dict[str, dict[str, Any]]:
+        """Official name, code and flag of national teams, keyed by lower-case name.
+
+        Built from the World Cup and European Championship team lists (both on the
+        free tier). A competition that fails to load is skipped.
+        """
+        teams: dict[str, dict[str, Any]] = {}
+        for code in ("EC", "WC"):  # WC last, so it wins for teams in both
+            try:
+                res = await self._fd(f"competitions/{code}/teams", ttl_seconds(hours=24))
+            except ProviderError as exc:
+                logger.info("National teams for %s unavailable: %s", code, type(exc).__name__)
+                continue
+            for t in res.payload.get("teams") or []:
+                if t.get("name"):
+                    teams[t["name"].strip().lower()] = {"name": t["name"], "tla": t.get("tla"), "crest": t.get("crest")}
+        return teams
+
+    async def competition_matches(self, code: str) -> list[dict[str, Any]]:
+        """All matches of a competition's current season, oldest first."""
+
+        def ttl(payload: dict[str, Any]) -> int:
+            done = all(m.get("status") in ("FINISHED", "AWARDED") for m in payload.get("matches") or [])
+            return ttl_seconds(hours=24) if done else ttl_seconds(minutes=10)
+
+        res = await self._fd(f"competitions/{code}/matches", ttl)
+        matches = [normalize_match(m) for m in res.payload.get("matches") or []]
+        matches.sort(key=lambda m: m["utc_date"] or "")
+        return matches
+
     async def match_detail(self, match_id: int) -> dict[str, Any]:
         res = await self._fd(f"matches/{match_id}", _match_detail_ttl)
         match = normalize_match(res.payload)

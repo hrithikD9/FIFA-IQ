@@ -11,6 +11,7 @@ import {
     STATUS_TONES,
     formatKickoff,
     formatLongDate,
+    predictionState,
     prettyStage,
 } from '../utils/football'
 
@@ -104,7 +105,7 @@ const Hero = ({ match }) => {
                 <div className="flex justify-center">
                     <Link
                         to="/predict"
-                        state={{ home: match.home_team?.name, away: match.away_team?.name }}
+                        state={predictionState(match)}
                         className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-fi-accent px-5 text-sm font-semibold text-[#11152A] hover:bg-fi-accent-light"
                     >
                         <Sparkles className="size-4" aria-hidden="true" /> Predict with AI

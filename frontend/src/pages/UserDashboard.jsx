@@ -25,6 +25,20 @@ const StatTile = ({ label, value, caption }) => (
     </Card>
 )
 
+const GradeBadge = ({ grade }) => {
+    if (!grade) return null
+    if (grade.status === 'graded') {
+        return (
+            <Pill tone={grade.correct ? 'win' : 'loss'}>
+                {grade.correct ? 'Correct' : 'Wrong'} · {grade.score.home}–{grade.score.away}
+            </Pill>
+        )
+    }
+    if (grade.status === 'pending') return <Pill>Awaiting result</Pill>
+    if (grade.status === 'void') return <Pill tone="momentum">Match not played</Pill>
+    return null
+}
+
 const PredictionItem = ({ p }) => {
     const home = p.home_team?.name ?? 'Home'
     const away = p.away_team?.name ?? 'Away'
@@ -34,7 +48,10 @@ const PredictionItem = ({ p }) => {
                 <p className="font-display text-base font-semibold text-white">
                     {home} <span className="text-fi-muted">vs</span> {away}
                 </p>
-                <span className="text-xs text-fi-muted">{timeAgo(p.created_at)}</span>
+                <span className="flex items-center gap-2 text-xs text-fi-muted">
+                    <GradeBadge grade={p.grade} />
+                    {timeAgo(p.created_at)}
+                </span>
             </div>
             <ProbabilitySplit
                 home={p.win_prob_home}

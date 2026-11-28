@@ -1,11 +1,13 @@
 import React, { useState } from 'react'
-import { Activity, AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Activity, AlertTriangle, CheckCircle2, FlaskConical, RefreshCw } from 'lucide-react'
 import DailyBars from '../components/admin/DailyBars'
 import ProbabilitySplit from '../components/football/ProbabilitySplit'
 import { Button, Card, EmptyState, ErrorState, Inset, Pill, SectionHeader, Segmented, Skeleton } from '../components/football/ui'
 import { useApi } from '../hooks/useApi'
 import { fetchAdminOverview, fetchAdminUsers, fetchApiUsage } from '../services/dashboardApi'
-import { timeAgo } from '../utils/football'
+import { fetchModelCheck } from '../services/predictionApi'
+import { pct0, timeAgo } from '../utils/football'
 
 const Kpi = ({ label, value, caption, tone = 'text-white' }) => (
     <Card className="flex min-h-28 flex-col justify-between gap-1 p-4">
@@ -81,6 +83,42 @@ const ApiHealth = ({ query }) => {
                     ))}
                 </div>
             )}
+        </div>
+    )
+}
+
+const ModelHealth = ({ query }) => {
+    if (query.error) return <p className="text-sm text-fi-muted">Model check unavailable right now.</p>
+    if (!query.data) return <Skeleton className="h-24" />
+    const { model, summary: s, coverage } = query.data
+    return (
+        <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+                <span className="font-semibold text-white">{model.name}</span>
+                <Pill tone={model.kind === 'baseline' ? 'momentum' : 'win'}>{model.version}</Pill>
+            </div>
+            <dl className="grid grid-cols-3 gap-3 text-sm">
+                <div>
+                    <dt className="text-xs text-fi-muted">Accuracy</dt>
+                    <dd className="font-display text-xl font-bold text-white">{s.accuracy == null ? '—' : pct0(s.accuracy)}</dd>
+                </div>
+                <div>
+                    <dt className="text-xs text-fi-muted">Brier</dt>
+                    <dd className="font-display text-xl font-bold text-white">{s.brier ?? '—'}</dd>
+                </div>
+                <div>
+                    <dt className="text-xs text-fi-muted">Coverage</dt>
+                    <dd className="font-display text-xl font-bold text-white">
+                        {coverage.evaluated}/{coverage.finished}
+                    </dd>
+                </div>
+            </dl>
+            <p className="text-xs text-fi-muted">
+                Graded on {query.data.competition?.name ?? 'the latest World Cup'}; guessing scores Brier {s.uniform_brier}.{' '}
+                <Link to="/predict" className="font-semibold text-fi-link">
+                    Details →
+                </Link>
+            </p>
         </div>
     )
 }
@@ -170,11 +208,13 @@ const AdminDashboard = () => {
     const overview = useApi('admin-overview', (signal) => fetchAdminOverview(signal))
     const users = useApi('admin-users', (signal) => fetchAdminUsers(signal))
     const apiUsage = useApi('admin-api-usage', (signal) => fetchApiUsage(signal))
+    const modelCheck = useApi('model-check', (signal) => fetchModelCheck(signal))
 
     const refresh = () => {
         overview.reload()
         users.reload()
         apiUsage.reload()
+        modelCheck.reload()
     }
     const busy = overview.loading || users.loading || apiUsage.loading
 
@@ -258,6 +298,17 @@ const AdminDashboard = () => {
                     <UsersTable query={users} />
                 </Card>
                 <Card className="flex min-w-0 flex-col gap-4 p-5 sm:p-6">
+                    <SectionHeader
+                        badge={
+                            <span className="grid size-10 place-items-center rounded-xl bg-fi-accent/10 text-fi-accent">
+                                <FlaskConical className="size-5" aria-hidden="true" />
+                            </span>
+                        }
+                        title="Prediction model"
+                        subtitle="Live model and its graded accuracy"
+                    />
+                    <ModelHealth query={modelCheck} />
+                    <div className="h-px bg-fi-border" />
                     <SectionHeader title="Latest predictions" subtitle="Across all users" />
                     {o ? <RecentPredictions rows={o.recent_predictions.slice(0, 6)} /> : <Skeleton className="h-56" />}
                 </Card>
