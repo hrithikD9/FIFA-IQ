@@ -36,7 +36,7 @@ function useLiveCount() {
     return count
 }
 
-const Sidebar = ({ liveCount }) => (
+const Sidebar = ({ liveCount, isAdmin }) => (
     <aside className="border-b border-fi-border px-4 py-4 lg:sticky lg:top-[77px] lg:h-[calc(100vh-77px)] lg:w-60 lg:shrink-0 lg:overflow-y-auto lg:border-r lg:border-b-0 lg:px-4 lg:py-6">
         <div className="hidden items-center gap-3 px-2 lg:flex">
             <span className="grid size-10 place-items-center rounded-xl bg-fi-accent font-display text-sm font-bold text-[#11152A]">
@@ -52,7 +52,7 @@ const Sidebar = ({ liveCount }) => (
             {NAV.map((item) => (
                 <NavLink
                     key={item.to}
-                    to={item.to}
+                    to={item.to === '/dashboard' && isAdmin ? '/admin' : item.to}
                     className={({ isActive }) =>
                         `flex min-h-11 shrink-0 items-center justify-between gap-3 whitespace-nowrap rounded-xl border px-4 text-[15px] transition-colors ${
                             isActive
@@ -106,7 +106,7 @@ const AppShell = () => {
             </header>
 
             <div className="lg:flex">
-                <Sidebar liveCount={liveCount} />
+                <Sidebar liveCount={liveCount} isAdmin={Boolean(user?.isAdmin)} />
                 <main className="min-w-0 flex-1 px-4 py-6 sm:px-8">
                     <div className="mx-auto max-w-[1180px]">
                         <Outlet />

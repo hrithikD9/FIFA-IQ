@@ -57,16 +57,6 @@ function App() {
         element={hasCompletedSignupStepOne() ? <SignupStepTwo/> : <Navigate to='/signup' replace />}
       />
 
-      {/* User-only workspace: locked to non-admin users. Admins are bounced to /admin. */}
-      <Route
-        path='/dashboard'
-        element={
-          <UserGuard>
-            <UserDashboard />
-          </UserGuard>
-        }
-      />
-
       {/* Protected routes */}
       <Route element={<ProtectedRoute />}>
         <Route path='/predict' element={<MatchOutcomePrediction />}/>
@@ -76,6 +66,10 @@ function App() {
 
         {/* Football data pages share the redesigned shell (sidebar + top bar). */}
         <Route element={<AppShell />}>
+          {/* User workspace: non-admins only (admins are sent to /admin). */}
+          <Route path='/dashboard' element={<UserGuard><UserDashboard /></UserGuard>}/>
+          {/* Admin workspace: admins only (others are sent to /dashboard). */}
+          <Route path='/admin' element={<AdminGuard><AdminDashboard /></AdminGuard>}/>
           <Route path='/fixtures' element={<Fixtures />}/>
           <Route path='/live' element={<LiveScores />}/>
           <Route path='/results' element={<Results />}/>
@@ -86,16 +80,6 @@ function App() {
           <Route path='/players/:playerId' element={<PlayerDetails />}/>
         </Route>
       </Route>
-
-      {/* Admin routes: locked to admins. Non-admin users are bounced to /dashboard. */}
-            <Route
-              path="admin"
-              element={
-                <AdminGuard>
-                  <AdminDashboard />
-                </AdminGuard>
-              }
-            />
     </Routes>
   )
 }

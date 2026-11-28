@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from typing import Any, cast
 
@@ -10,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.core.security import get_current_user
 from app.database import supabase
 from app.models.team import Team
+from app.services.admin_stats import build_overview, user_row
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -221,3 +223,105 @@ async def get_api_usage(admin: dict[str, Any] = Depends(verify_admin_user)) -> A
 
     recent_errors = [r for r in rows if not r.get("ok")][:20]
     return ApiUsage(window_hours=24, providers=providers, recent_errors=recent_errors)
+
+
+# ---------------------------------------------------------------------------
+# Dashboard: overview + users
+# ---------------------------------------------------------------------------
+_USERS_PAGE_SIZE = 200
+_MAX_PREDICTION_ROWS = 10000
+
+
+def _model_to_dict(obj: Any) -> dict[str, Any]:
+    return obj.model_dump() if hasattr(obj, "model_dump") else dict(obj)
+
+
+def _list_all_users() -> list[dict[str, Any]]:
+    """All Supabase Auth users (service-role admin API), paging until exhausted."""
+    users: list[dict[str, Any]] = []
+    page = 1
+    while True:
+        batch = supabase.auth.admin.list_users(page=page, per_page=_USERS_PAGE_SIZE)
+        users.extend(_model_to_dict(u) for u in batch)
+        if len(batch) < _USERS_PAGE_SIZE:
+            return users
+        page += 1
+
+
+def _prediction_rows() -> list[dict[str, Any]]:
+    resp = (
+        supabase.table("predictions")
+        .select("id, user_id, match_id, win_prob_home, win_prob_away, draw_prob, created_at")
+        .order("created_at", desc=True)
+        .limit(_MAX_PREDICTION_ROWS)
+        .execute()
+    )
+    return cast(list[dict[str, Any]], resp.data or [])
+
+
+def _enrich_predictions(rows: list[dict[str, Any]], users_by_id: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    """Attach team names and the predicting user's email/name to prediction rows."""
+    match_ids = sorted({r["match_id"] for r in rows if r.get("match_id") is not None})
+    matches = (
+        cast(list[dict[str, Any]], supabase.table("matches").select("id, home_team_id, away_team_id").in_("id", match_ids).execute().data or [])
+        if match_ids
+        else []
+    )
+    matches_by_id = {m["id"]: m for m in matches}
+    team_ids = sorted({t for m in matches for t in (m.get("home_team_id"), m.get("away_team_id")) if t is not None})
+    teams = (
+        cast(list[dict[str, Any]], supabase.table("teams").select("id, name").in_("id", team_ids).execute().data or [])
+        if team_ids
+        else []
+    )
+    team_names = {t["id"]: t["name"] for t in teams}
+
+    enriched = []
+    for r in rows:
+        match = matches_by_id.get(r.get("match_id")) or {}
+        user = users_by_id.get(r.get("user_id")) or {}
+        enriched.append(
+            {
+                **r,
+                "home_team": team_names.get(match.get("home_team_id")),
+                "away_team": team_names.get(match.get("away_team_id")),
+                "user_email": user.get("email"),
+                "user_name": user.get("full_name"),
+            }
+        )
+    return enriched
+
+
+@router.get("/overview", status_code=status.HTTP_200_OK)
+async def get_admin_overview(admin: dict[str, Any] = Depends(verify_admin_user)) -> dict[str, Any]:
+    """User and prediction KPIs, a 14-day prediction trend and the latest predictions."""
+    try:
+        raw_users = _list_all_users()
+        predictions = _prediction_rows()
+        rows_by_id = {u.get("id"): user_row(u, 0) for u in raw_users}
+        overview = build_overview(raw_users, predictions, datetime.now(timezone.utc))
+        overview["recent_predictions"] = _enrich_predictions(predictions[:10], rows_by_id)
+        return overview
+    except Exception as exc:
+        logger.error(f"Admin Router Error (overview): {exc}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not load the admin overview.",
+        ) from exc
+
+
+@router.get("/users", status_code=status.HTTP_200_OK)
+async def list_users(admin: dict[str, Any] = Depends(verify_admin_user)) -> dict[str, Any]:
+    """Registered users with role, sign-in activity and prediction counts, newest first."""
+    try:
+        raw_users = _list_all_users()
+        counts = Counter(p.get("user_id") for p in _prediction_rows())
+        users = [user_row(u, counts.get(u.get("id"), 0)) for u in raw_users]
+        users.sort(key=lambda u: u["created_at"] or "", reverse=True)
+        return {"users": users, "total": len(users)}
+    except Exception as exc:
+        logger.error(f"Admin Router Error (users): {exc}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not load users.",
+        ) from exc
