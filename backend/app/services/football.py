@@ -131,6 +131,9 @@ def normalize_match(m: dict[str, Any]) -> dict[str, Any]:
             "duration": score.get("duration"),
         },
         "referee": referee,
+        # Present for in-play matches on plans that expose it; otherwise None.
+        "minute": m.get("minute"),
+        "injury_time": m.get("injuryTime"),
         "last_updated": m.get("lastUpdated"),
     }
 

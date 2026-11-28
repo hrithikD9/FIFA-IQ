@@ -22,7 +22,7 @@ import Scorecard from './pages/Scorecard'
 import TeamDetails, { TeamsIndex } from './pages/TeamDetails'
 import Players from './pages/Players'
 import PlayerDetails from './pages/PlayerDetails'
-import ComingSoon from './pages/ComingSoon'
+import LiveScores from './pages/LiveScores'
 
 const SIGNUP_STEP_ONE_STORAGE_KEY = 'fifa-iq.signup.stepOne'
 
@@ -77,7 +77,7 @@ function App() {
         {/* Football data pages share the redesigned shell (sidebar + top bar). */}
         <Route element={<AppShell />}>
           <Route path='/fixtures' element={<Fixtures />}/>
-          <Route path='/live' element={<ComingSoon title='Live Scores' />}/>
+          <Route path='/live' element={<LiveScores />}/>
           <Route path='/results' element={<Results />}/>
           <Route path='/results/:matchId' element={<Scorecard />}/>
           <Route path='/teams' element={<TeamsIndex />}/>
